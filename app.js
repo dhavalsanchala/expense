@@ -212,6 +212,28 @@
         if (!d.typeCategories || typeof d.typeCategories !== 'object') d.typeCategories = JSON.parse(JSON.stringify(DEFAULT_DATA.typeCategories));
         if (d.autoResetMonth === undefined) d.autoResetMonth = true;
         d.transactions = d.transactions.filter(t => t && t.id && t.date);
+        // Seed each recurring item's generatedMonths ledger so the generator never
+        // recreates a month that was already produced — even if the user later moved
+        // or deleted that month's instance. Built from existing instances plus every
+        // month up to and including lastGenerated.
+        (d.recurring || []).forEach(r => {
+          if (!r || !r.id) return;
+          if (!Array.isArray(r.generatedMonths)) r.generatedMonths = [];
+          const set = new Set(r.generatedMonths);
+          d.transactions.forEach(t => {
+            if (t.recurringId === r.id && /^\d{4}-\d{2}/.test(t.date)) set.add(t.date.slice(0, 7));
+          });
+          if (r.startDate && r.lastGenerated && /^\d{4}-\d{2}/.test(r.startDate) && /^\d{4}-\d{2}/.test(r.lastGenerated)) {
+            let [y, m] = r.startDate.slice(0, 7).split('-').map(Number);
+            const [ey, em] = r.lastGenerated.split('-').map(Number);
+            let guard = 0;
+            while ((y < ey || (y === ey && m <= em)) && guard++ < 600) {
+              set.add(`${y}-${String(m).padStart(2, '0')}`);
+              m++; if (m > 12) { m = 1; y++; }
+            }
+          }
+          r.generatedMonths = Array.from(set).sort();
+        });
         if (!['categories','grid','events'].includes(d.planView)) d.planView = 'categories';
         // Repair missing fields on existing transactions
         d.transactions.forEach(t => {
@@ -1882,7 +1904,14 @@
                 if (lm > 12) { lm = 1; ly++; }
                 continue;
               }
-              const exists = this.data.transactions.some(t =>
+              // A month counts as "already handled" if we have ever generated it
+              // (recorded in generatedMonths) OR a matching transaction still exists.
+              // Relying on generatedMonths means editing an instance's date — e.g.
+              // moving it from June back to May — never makes the generator think
+              // June is missing and recreate a duplicate.
+              if (!Array.isArray(rec.generatedMonths)) rec.generatedMonths = [];
+              const alreadyGenerated = rec.generatedMonths.includes(monthKey);
+              const exists = alreadyGenerated || this.data.transactions.some(t =>
                 t.recurringId === rec.id && t.date.startsWith(monthKey)
               );
               if (!exists) {
@@ -1909,6 +1938,9 @@
                 });
                 generatedCount++;
               }
+              // Record the month as handled regardless of whether we created it now,
+              // so future loads won't regenerate it after the instance is moved/deleted.
+              if (!rec.generatedMonths.includes(monthKey)) rec.generatedMonths.push(monthKey);
             }
 
             lm++;
@@ -2903,6 +2935,28 @@
       }
 
       duplicateTransaction(id) {
+        const t = this.data.transactions.find(x => x && x.id === id);
+        if (!t) return;
+        // Confirm first — the duplicate button sits in a tight cluster next to Edit/Delete
+        // and was being tapped accidentally, silently creating copies.
+        this.confirmCallback = () => {
+          this._doDuplicateTransaction(id);
+          this.closeModal('confirmModal');
+        };
+        const confirmTitle = document.getElementById('confirmTitle');
+        const confirmBody = document.getElementById('confirmBody');
+        const confirmBtn = document.getElementById('confirmBtn');
+        if (confirmTitle) confirmTitle.textContent = 'Duplicate Transaction?';
+        if (confirmBody) confirmBody.textContent = `Create a copy of "${t.item || 'Untitled'}" (${this.fmt(this.txDisplayAmount(t))}) dated ${t.date}?`;
+        if (confirmBtn) {
+          confirmBtn.textContent = 'Duplicate';
+          confirmBtn.className = 'btn btn-primary';
+          confirmBtn.onclick = this.confirmCallback;
+        }
+        this.openModal('confirmModal');
+      }
+
+      _doDuplicateTransaction(id) {
         this._nwCache = null;
         this.pushUndo('Duplicate transaction');
         const t = this.data.transactions.find(x => x && x.id === id);
