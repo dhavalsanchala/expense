@@ -26,6 +26,39 @@
     const THEME_KEY = 'expenseTracker_theme';
     const APP_VERSION = 3;
 
+    // Color coding for expense type badges. bg/fg are light-mode fills; the dark
+    // variants are applied via a data-attribute + CSS. Grouped by what money does:
+    // income=green, holding=teal/purple/blue, spending=gray/amber/coral.
+    const TYPE_STYLES = {
+      'Earning':       { bg: '#D8F2C2', fg: '#1F5104', dbg: '#1F5A12', dfg: '#A8E88A' },
+      'Saving':        { bg: '#C6F0E4', fg: '#024F3E', dbg: '#0A5A47', dfg: '#74E5C8' },
+      'Investment':    { bg: '#DCD9FB', fg: '#322A9C', dbg: '#332B86', dfg: '#BDB6F7' },
+      'Transfer':      { bg: '#CFE6FC', fg: '#08407D', dbg: '#0B4178', dfg: '#92C2F2' },
+      'Essential':     { bg: '#E4E2D6', fg: '#3A3A36', dbg: '#3D3D38', dfg: '#C7C5B8' },
+      'Non-essential': { bg: '#FBDFB0', fg: '#7A4504', dbg: '#7A4604', dfg: '#F5BE6B' },
+      'Vacation':      { bg: '#FBD9C9', fg: '#8A2F11', dbg: '#8A300F', dfg: '#F4B49A' }
+    };
+    // Fallback palette for custom user-added types (assigned by stable hash).
+    const TYPE_FALLBACK = [
+      { bg: '#FBD2E4', fg: '#8A2453', dbg: '#8A2453', dfg: '#F5A6C7' },
+      { bg: '#FCD2D2', fg: '#8A1F1F', dbg: '#8A1F1F', dfg: '#F5A3A3' }
+    ];
+
+    function typeAbbrev(type) {
+      if (!type) return 'O';
+      const clean = type.trim();
+      // Two letters: first + next consonant-ish char for readability.
+      if (clean.length <= 2) return clean.charAt(0).toUpperCase() + (clean.charAt(1) || '').toLowerCase();
+      return clean.charAt(0).toUpperCase() + clean.charAt(1).toLowerCase();
+    }
+
+    function typeStyle(type) {
+      if (TYPE_STYLES[type]) return TYPE_STYLES[type];
+      let h = 0;
+      for (let i = 0; i < (type || '').length; i++) h = (h * 31 + type.charCodeAt(i)) >>> 0;
+      return TYPE_FALLBACK[h % TYPE_FALLBACK.length];
+    }
+
     const DEFAULT_DATA = {
       version: APP_VERSION,
       transactions: [],
@@ -1245,6 +1278,15 @@
         setTimeout(() => this.checkSpendingAlerts(), 200);
       }
 
+      /** Color-coded type badge (two-letter abbrev). sizeStyle for inline size overrides. */
+      typeIcon(type, sizeStyle = '') {
+        const s = typeStyle(type);
+        const ab = typeAbbrev(type || 'Other');
+        // CSS custom props let the stylesheet swap to dark variants in dark mode.
+        const vars = `--tbg:${s.bg};--tfg:${s.fg};--tbg-d:${s.dbg};--tfg-d:${s.dfg};`;
+        return `<div class="tx-icon type-badge" style="${vars}${sizeStyle}">${ab}</div>`;
+      }
+
       txRow(t) {
         if (!t) return '';
         const type = t.type || 'Other';
@@ -1260,7 +1302,7 @@
         const sign = isIncome ? '+' : (isExpense ? '\u2212' : '');
         return `
           <div class="tx-item" onclick="app.editTransaction('${t.id}')">
-            <div class="tx-icon">${type.charAt(0).toUpperCase()}</div>
+            ${this.typeIcon(type)}
             <div class="tx-content">
               <div class="tx-title">${this.esc(t.item || 'Untitled')}${srcBadge}${recBadge}${splitBadge}${xferBadge}${earnBadge}</div>
               <div class="tx-meta">${this.esc(type)} · ${this.esc(t.category || '')}${t.mode ? ' · ' + this.esc(t.mode) : ''}${t.subMode ? ' · ' + this.esc(t.subMode) : ''} · ${t.date.slice(8)}${t.vendor ? ' · ' + this.esc(t.vendor) : ''}${evt ? ' · ' + this.esc(evt.name) : ''}</div>
@@ -1455,21 +1497,83 @@
         }
 
         const isFixed = t.frequency && t.frequency !== 'Variable';
+        let recurringJustSet = false;
         if (oldTx && oldTx.recurringId) {
           if (!isFixed) {
             this.data.recurring = this.data.recurring.filter(r => r.id !== oldTx.recurringId);
             delete t.recurringId;
           } else {
             t.recurringId = this.manageRecurringTemplate(t, originalAmount, oldTx.recurringId);
+            recurringJustSet = true;
           }
         } else if (isFixed) {
           t.recurringId = this.manageRecurringTemplate(t, originalAmount);
+          recurringJustSet = true;
         }
 
         this.save();
+        // Back-fill any past/intervening months immediately so the user doesn't
+        // have to restart the app to see a retrospective recurring series appear.
+        let backfilled = 0;
+        if (recurringJustSet) {
+          const realMonth = getLocalDateStr().slice(0, 7);
+          backfilled = this.generateRecurring(true, realMonth);
+        }
+
+        // If this was an edit of an existing series member, offer to apply the
+        // changed fields to subsequent occurrences or the whole series.
+        const wasSeriesEdit = oldTx && oldTx.recurringId && t.recurringId && isFixed && !isSplit;
+        const changedFields = wasSeriesEdit ? this._diffSeriesFields(oldTx, t) : [];
+        if (wasSeriesEdit && changedFields.length > 0 && this.getSeriesInstances(t.recurringId).length > 1) {
+          this.resetForm();
+          this.setTab('home');
+          this.toast('Transaction saved', 'ok');
+          // Ask scope; 'one' = nothing more to do (already saved this one).
+          this.askSeriesScope('edit', (scope) => {
+            if (scope === 'one') return;
+            this._applyEditToSeries(t, changedFields, scope);
+          });
+          return;
+        }
+
         this.resetForm();
         this.setTab('home');
-        this.toast('Transaction saved', 'ok');
+        if (backfilled > 0) {
+          this.toast(`Transaction saved · ${backfilled} more recurring ${backfilled === 1 ? 'entry' : 'entries'} added`, 'ok');
+        } else {
+          this.toast('Transaction saved', 'ok');
+        }
+      }
+
+      /** Which propagatable fields changed between the old and new instance. */
+      _diffSeriesFields(oldTx, t) {
+        const fields = ['amount', 'item', 'category', 'type', 'vendor', 'brand', 'mode', 'subMode'];
+        return fields.filter(f => (oldTx[f] || '') !== (t[f] || ''));
+      }
+
+      /** Apply changed fields to sibling instances (and the template) per scope. */
+      _applyEditToSeries(t, fields, scope) {
+        this._nwCache = null;
+        this.pushUndo('Edit recurring (' + scope + ')');
+        const recId = t.recurringId;
+        const anchorDate = t.date;
+        const siblings = this.getSeriesInstances(recId).filter(x => {
+          if (x.id === t.id) return false; // already updated
+          if (scope === 'all') return true;
+          return (x.date || '') > anchorDate; // subsequent only
+        });
+        let updated = 0;
+        siblings.forEach(x => {
+          fields.forEach(f => { x[f] = t[f]; });
+          updated++;
+        });
+        // Update the template so future generated occurrences use the new values.
+        const rec = this.data.recurring.find(r => r.id === recId);
+        if (rec) fields.forEach(f => { rec[f] = t[f]; });
+        this.save();
+        this.renderHistory();
+        if (this.data.currentTab === 'home') this.renderDashboard();
+        this.toast(`Updated ${updated + 1} transaction${updated === 0 ? '' : 's'} in series`, 'ok');
       }
 
       manageRecurringTemplate(t, originalAmount, existingId) {
@@ -1926,10 +2030,10 @@
       }
 
       /** Optimized recurring generation: start from lastGenerated instead of startDate */
-      generateRecurring() {
+      generateRecurring(silent = false, uptoMonth = null) {
         this._nwCache = null;
         if (!this.data.recurring) this.data.recurring = [];
-        const currentMonth = this.data.currentMonth;
+        const currentMonth = uptoMonth || this.data.currentMonth;
         let generatedCount = 0;
 
         this.data.recurring.forEach(rec => {
@@ -1941,6 +2045,7 @@
 
           while (ly < cy || (ly === cy && lm <= cm)) {
             const monthKey = `${ly}-${String(lm).padStart(2, '0')}`;
+            if (rec.seriesEndMonth && monthKey > rec.seriesEndMonth) break;
             const monthsDiff = (ly - parseInt(rec.startDate.slice(0,4))) * 12 + (lm - parseInt(rec.startDate.slice(5,7)));
 
             let shouldGen = false;
@@ -2003,8 +2108,9 @@
 
         if (generatedCount > 0) {
           this.save();
-          this.toast(generatedCount + ' recurring transaction(s) generated', 'ok');
+          if (!silent) this.toast(generatedCount + ' recurring transaction(s) generated', 'ok');
         }
+        return generatedCount;
       }
 
       checkSpendingAlerts() {
@@ -2960,7 +3066,7 @@
             const dupBtn = `<button class="del-btn" style="width:20px;height:20px;padding:0;" onclick="event.stopPropagation();app.duplicateTransaction('${t.id}')" title="Duplicate" aria-label="Duplicate transaction">${this.icon('plus')}</button>`;
             return dateHeader + `
             <div class="tx-item" style="padding:8px 0;${t.splitGroup ? 'padding-left:28px;opacity:0.85;border-left:2px solid var(--glass-border-dark);margin-left:4px;' : ''}">
-              <div class="tx-icon" style="width:28px;height:28px;font-size:10px;${t.splitGroup ? 'width:22px;height:22px;font-size:9px;background:var(--bg);' : ''}">${(t.type||'O').charAt(0).toUpperCase()}</div>
+              ${t.splitGroup ? `<div class="tx-icon" style="width:22px;height:22px;font-size:9px;background:var(--bg);">${typeAbbrev(t.type||'O')}</div>` : this.typeIcon(t.type||'Other', 'width:28px;height:28px;font-size:10px;')}
               <div class="tx-content" style="min-width:0;">
                 <div class="tx-title" style="font-size:13px;${t.splitGroup ? 'font-size:12px;' : ''}">${this.esc(t.item || 'Untitled')}${splitBadge}${mirrorBadge}${earnBadge}</div>
                 <div class="tx-meta" style="font-size:10px;">${this.esc(t.category || '')}${t.mode ? ' · ' + this.esc(t.mode) : ''} · ${t.date}${t.splitGroup ? ' · split' : ''}</div>
@@ -3050,7 +3156,115 @@
         this.toast('Transaction duplicated', 'ok');
       }
 
+      // ===== RECURRING SERIES SCOPE =====
+      /** All instances sharing a recurringId, sorted by date. */
+      getSeriesInstances(recurringId) {
+        if (!recurringId) return [];
+        return this.data.transactions
+          .filter(t => t && t.recurringId === recurringId)
+          .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+      }
+
+      /** True if this transaction belongs to a recurring series. */
+      isSeriesMember(t) {
+        return !!(t && t.recurringId && this.data.recurring.some(r => r.id === t.recurringId));
+      }
+
+      /**
+       * Show a 3-way scope chooser (This / This & subsequent / All in series).
+       * onPick receives 'one' | 'subsequent' | 'all'. Used for both edit and delete.
+       */
+      askSeriesScope(verb, onPick) {
+        const titleEl = document.getElementById('seriesScopeTitle');
+        const bodyEl = document.getElementById('seriesScopeBody');
+        if (titleEl) titleEl.textContent = (verb === 'delete' ? 'Delete' : 'Edit') + ' recurring transaction';
+        if (bodyEl) bodyEl.textContent = 'This transaction is part of a recurring series. Apply to:';
+        const map = { one: 'seriesScopeOne', subsequent: 'seriesScopeSubsequent', all: 'seriesScopeAll' };
+        Object.entries(map).forEach(([scope, btnId]) => {
+          const btn = document.getElementById(btnId);
+          if (btn) btn.onclick = () => { this.closeModal('seriesScopeModal'); onPick(scope); };
+        });
+        this.openModal('seriesScopeModal');
+      }
+
       confirmDelete(id) {
+        const t = this.data.transactions.find(x => x && x.id === id);
+        // Recurring series → ask scope first, then delete accordingly.
+        if (t && this.isSeriesMember(t)) {
+          this.askSeriesScope('delete', (scope) => this.deleteSeries(id, scope));
+          return;
+        }
+        this._confirmDeleteSingle(id);
+      }
+
+      /** Delete with a chosen series scope. */
+      deleteSeries(id, scope) {
+        const t = this.data.transactions.find(x => x && x.id === id);
+        if (!t) return;
+        const recId = t.recurringId;
+        const anchorDate = t.date;
+        this.confirmCallback = () => {
+          this._nwCache = null;
+          this.pushUndo('Delete recurring (' + scope + ')');
+          let removed = 0;
+          if (scope === 'one') {
+            this.data.transactions = this.data.transactions.filter(x => x.id !== id);
+            removed = 1;
+            const rec = this.data.recurring.find(r => r.id === recId);
+            if (rec) {
+              const mk = anchorDate.slice(0, 7);
+              if (!Array.isArray(rec.generatedMonths)) rec.generatedMonths = [];
+              if (!rec.generatedMonths.includes(mk)) rec.generatedMonths.push(mk);
+            }
+          } else if (scope === 'subsequent') {
+            const before = this.data.transactions.length;
+            this.data.transactions = this.data.transactions.filter(x =>
+              !(x.recurringId === recId && (x.date || '') >= anchorDate));
+            removed = before - this.data.transactions.length;
+            const rec = this.data.recurring.find(r => r.id === recId);
+            if (rec) {
+              const [ay, am] = anchorDate.slice(0, 7).split('-').map(Number);
+              let py = ay, pm = am - 1; if (pm < 1) { pm = 12; py--; }
+              rec.lastGenerated = `${py}-${String(pm).padStart(2, '0')}`;
+              rec.seriesEndMonth = rec.lastGenerated; // hard stop: never generate after this
+              rec.endedManually = true;
+              if (Array.isArray(rec.generatedMonths)) {
+                rec.generatedMonths = rec.generatedMonths.filter(mk => mk < anchorDate.slice(0, 7));
+              }
+            }
+          } else { // all
+            const before = this.data.transactions.length;
+            this.data.transactions = this.data.transactions.filter(x => x.recurringId !== recId);
+            removed = before - this.data.transactions.length;
+            this.data.recurring = this.data.recurring.filter(r => r.id !== recId);
+          }
+          this.save();
+          this.renderHistory();
+          if (this.data.currentTab === 'home') this.renderDashboard();
+          if (this.data.currentTab === 'track') this.renderTrack();
+          this.closeModal('confirmModal');
+          this.toast(`Deleted ${removed} transaction${removed === 1 ? '' : 's'}`, 'ok');
+        };
+        const titles = { one: 'Delete this transaction?', subsequent: 'Delete this and all later?', all: 'Delete entire series?' };
+        const bodies = {
+          one: 'Only this one occurrence will be removed.',
+          subsequent: 'This occurrence and every later one will be removed, and the series will stop generating new ones.',
+          all: 'Every occurrence in this series, past and future, will be removed.'
+        };
+        const confirmTitle = document.getElementById('confirmTitle');
+        const confirmBody = document.getElementById('confirmBody');
+        const confirmBtn = document.getElementById('confirmBtn');
+        if (confirmTitle) confirmTitle.textContent = titles[scope];
+        if (confirmBody) confirmBody.textContent = bodies[scope] + ' This can be undone once via Undo.';
+        if (confirmBtn) {
+          confirmBtn.textContent = 'Delete';
+          confirmBtn.className = 'btn btn-danger';
+          confirmBtn.onclick = this.confirmCallback;
+        }
+        this.openModal('confirmModal');
+      }
+
+      _confirmDeleteSingle(id) {
         this.pushUndo('Delete transaction');
         this.confirmCallback = () => {
           this._nwCache = null;
@@ -3573,7 +3787,7 @@
             <div style="max-height:300px;overflow-y:auto;">
               ${visibleTxs.slice().reverse().slice(0,20).map(t => `
                 <div class="tx-item" style="padding:6px 0;">
-                  <div class="tx-icon" style="width:26px;height:26px;font-size:10px;">${(t.type||'O').charAt(0).toUpperCase()}</div>
+                  ${this.typeIcon(t.type||'Other', 'width:26px;height:26px;font-size:10px;')}
                   <div class="tx-content">
                     <div class="tx-title">${this.esc(t.item||'Untitled')}</div>
                     <div class="tx-meta">${this.esc(t.type)} · ${this.esc(t.category||'')} · ${t.date}</div>

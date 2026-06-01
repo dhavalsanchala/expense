@@ -201,6 +201,11 @@
       width:32px; height:32px; border-radius:8px; background:var(--bg); color:var(--text-secondary); display:flex; align-items:center; justify-content:center;
       font-size:12px; font-weight:700; flex-shrink:0; border:1px solid var(--glass-border-dark); box-shadow:var(--shadow-neu);
     }
+    .tx-icon.type-badge { background:var(--tbg); color:var(--tfg); border-color:transparent; }
+    [data-theme="dark"] .tx-icon.type-badge { background:var(--tbg-d); color:var(--tfg-d); }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) .tx-icon.type-badge { background:var(--tbg-d); color:var(--tfg-d); }
+    }
     .tx-content { flex:1; min-width:0; }
     .tx-title { font-size:13px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; letter-spacing:-0.01em; }
     .tx-meta { font-size:10px; color:var(--text-tertiary); font-weight:500; margin-top:2px; }

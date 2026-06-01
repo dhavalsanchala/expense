@@ -678,6 +678,22 @@
     </div>
   </div>
 
+  <div class="modal" id="seriesScopeModal" role="dialog" aria-modal="true" aria-labelledby="seriesScopeTitle">
+    <div class="modal-backdrop" onclick="app.closeModal('seriesScopeModal')"></div>
+    <div class="modal-panel modal-confirm" style="max-height:70vh;">
+      <div class="modal-header"><h3 id="seriesScopeTitle">Recurring transaction</h3></div>
+      <div class="modal-body">
+        <p id="seriesScopeBody" style="color:var(--text-secondary);font-size:14px;margin-bottom:14px;">This transaction is part of a recurring series. Apply to:</p>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <button class="btn" id="seriesScopeOne" style="width:100%;justify-content:center;">This transaction only</button>
+          <button class="btn" id="seriesScopeSubsequent" style="width:100%;justify-content:center;">This &amp; all subsequent</button>
+          <button class="btn" id="seriesScopeAll" style="width:100%;justify-content:center;">All in series</button>
+        </div>
+      </div>
+      <div class="modal-footer"><button class="btn" onclick="app.closeModal('seriesScopeModal')">Cancel</button></div>
+    </div>
+  </div>
+
   <!-- Backup & Restore Modal -->
   <div class="modal" id="backupModal" role="dialog" aria-modal="true" aria-labelledby="backupModalTitle">
     <div class="modal-backdrop" onclick="app.closeModal('backupModal')"></div>
