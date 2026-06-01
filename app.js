@@ -30,18 +30,18 @@
     // variants are applied via a data-attribute + CSS. Grouped by what money does:
     // income=green, holding=teal/purple/blue, spending=gray/amber/coral.
     const TYPE_STYLES = {
-      'Earning':       { bg: '#D8F2C2', fg: '#1F5104', dbg: '#1F5A12', dfg: '#A8E88A' },
-      'Saving':        { bg: '#C6F0E4', fg: '#024F3E', dbg: '#0A5A47', dfg: '#74E5C8' },
-      'Investment':    { bg: '#DCD9FB', fg: '#322A9C', dbg: '#332B86', dfg: '#BDB6F7' },
-      'Transfer':      { bg: '#CFE6FC', fg: '#08407D', dbg: '#0B4178', dfg: '#92C2F2' },
-      'Essential':     { bg: '#E4E2D6', fg: '#3A3A36', dbg: '#3D3D38', dfg: '#C7C5B8' },
-      'Non-essential': { bg: '#FBDFB0', fg: '#7A4504', dbg: '#7A4604', dfg: '#F5BE6B' },
-      'Vacation':      { bg: '#FBD9C9', fg: '#8A2F11', dbg: '#8A300F', dfg: '#F4B49A' }
+      'Earning':       { bg: '#E8F6DA', fg: '#2C6B12', dbg: '#234D11', dfg: '#B6E88F', accent: '#5BA83E', daccent: '#7FC65C' },
+      'Saving':        { bg: '#D9F2EA', fg: '#0A6B52', dbg: '#0A4D3C', dfg: '#86E0C6', accent: '#1AA882', daccent: '#3FCFA6' },
+      'Investment':    { bg: '#E4E1FB', fg: '#3B33A0', dbg: '#2C2680', dfg: '#C4BEF7', accent: '#6258C9', daccent: '#8C84E0' },
+      'Transfer':      { bg: '#DCEBFB', fg: '#0E4E8F', dbg: '#0B3A6E', dfg: '#A6CEF2', accent: '#2E7CC7', daccent: '#5C9FE0' },
+      'Essential':     { bg: '#ECEAE0', fg: '#54524A', dbg: '#3A3933', dfg: '#CDC9BC', accent: '#A8A498', daccent: '#BFBBAE' },
+      'Non-essential': { bg: '#FCEED4', fg: '#8A5A1A', dbg: '#5E3D0F', dfg: '#F2CE8A', accent: '#E0A340', daccent: '#F0BC63' },
+      'Vacation':      { bg: '#FBE2D6', fg: '#9A3F1C', dbg: '#6E2C12', dfg: '#F2B79E', accent: '#DB6238', daccent: '#EA855E' }
     };
     // Fallback palette for custom user-added types (assigned by stable hash).
     const TYPE_FALLBACK = [
-      { bg: '#FBD2E4', fg: '#8A2453', dbg: '#8A2453', dfg: '#F5A6C7' },
-      { bg: '#FCD2D2', fg: '#8A1F1F', dbg: '#8A1F1F', dfg: '#F5A3A3' }
+      { bg: '#FBDFEC', fg: '#902A5C', dbg: '#64193E', dfg: '#F2AECE', accent: '#C75091', daccent: '#E07CB0' },
+      { bg: '#FCDEDE', fg: '#8E2727', dbg: '#641B1B', dfg: '#F2A8A8', accent: '#CF4A4A', daccent: '#E07474' }
     ];
 
     function typeAbbrev(type) {
@@ -73,7 +73,7 @@
       ],
       currentMonth: '',
       currentTab: 'home',
-      planView: 'categories',
+      planView: 'grid',
       budgetMode: 'direct',
       planYear: 2026,
       undoStack: [],
@@ -267,7 +267,7 @@
           }
           r.generatedMonths = Array.from(set).sort();
         });
-        if (!['categories','grid','events'].includes(d.planView)) d.planView = 'categories';
+        if (!['grid','events'].includes(d.planView)) d.planView = 'grid';
         // Repair missing fields on existing transactions
         d.transactions.forEach(t => {
           if (t.source === undefined) t.source = 'Personal';
@@ -429,11 +429,14 @@
             this.quickFill(quickTile.dataset.item);
             return;
           }
-          const gridCell = e.target.closest('.annual-cell[data-grid-type]');
-          if (gridCell) {
-            const type = gridCell.dataset.gridType;
-            const month = gridCell.dataset.gridMonth;
-            if (type && month) this.openBudgetModal(type, month);
+          const gridTypeRow = e.target.closest('[data-grid-toggle-type]');
+          if (gridTypeRow) {
+            this.toggleGridType(gridTypeRow.dataset.gridToggleType);
+            return;
+          }
+          const gridCatRow = e.target.closest('[data-grid-toggle-cat]');
+          if (gridCatRow) {
+            this.toggleGridCat(gridCatRow.dataset.gridToggleCat);
             return;
           }
           const copyRow = e.target.closest('.copy-tx-row[data-copy-id]');
@@ -555,7 +558,7 @@
             const planGrid = document.getElementById('planGrid');
             const planEvents = document.getElementById('planEvents');
             const planYearBar = document.getElementById('planYearBar');
-            const view = this.data.planView || 'categories';
+            const view = this.data.planView || 'grid';
             if (planCategories) planCategories.style.display = view === 'categories' ? 'block' : 'none';
             if (planGrid) planGrid.style.display = view === 'grid' ? 'block' : 'none';
             if (planEvents) planEvents.style.display = view === 'events' ? 'block' : 'none';
@@ -2655,18 +2658,351 @@
       }
 
       renderGridRows(monthKeys) {
-        return (this.data.expenseTypes || EXPENSE_TYPES).map(type => {
+        if (!this.gridExpandedTypes) this.gridExpandedTypes = {};
+        if (!this.gridExpandedCats) this.gridExpandedCats = {};
+        const types = this.data.expenseTypes || EXPENSE_TYPES;
+        const nCols = monthKeys.length;
+        let html = '';
+
+        types.forEach(type => {
           const typeBudget = this.data.budgets[type] || {};
-          return `<tr>
-            <td>${this.esc(type)}</td>
-            ${monthKeys.map(key => {
-              const data = typeBudget[key] || {};
-              const amt = data.amount || 0;
-              const isFixedOnly = data.items && data.items.length > 0 && data.items.every(i => i.frequency && i.frequency !== 'One-time');
-              return `<td class="annual-cell ${amt ? 'has-budget' : ''} ${isFixedOnly ? 'recurring' : ''}" data-grid-type="${this.esc(type)}" data-grid-month="${key}">${amt ? this.fmtShort(amt) : '-'}</td>`;
-            }).join('')}
+          const style = typeStyle(type);
+          // Type total per month + grand.
+          const typeMonthTotals = monthKeys.map(k => (typeBudget[k]?.amount) || 0);
+          const tExpanded = !!this.gridExpandedTypes[type];
+
+          const tvars = `--trow-bg:${style.bg};--trow-fg:${style.fg};--trow-accent:${style.accent};--trow-bg-d:${style.dbg};--trow-fg-d:${style.dfg};--trow-accent-d:${style.daccent || style.accent};`;
+          html += `<tr class="grid-type-row" data-grid-toggle-type="${this.esc(type)}" style="cursor:pointer;${tvars}">
+            <td class="grid-type-cell" style="position:sticky;left:0;z-index:2;">
+              <span style="display:inline-block;width:14px;opacity:0.6;">${tExpanded ? '▾' : '▸'}</span>${this.esc(type)}
+            </td>
+            ${typeMonthTotals.map(a => `<td class="grid-type-num">${a ? this.fmtShort(a) : '<span style=\"opacity:0.35;\">–</span>'}</td>`).join('')}
           </tr>`;
-        }).join('');
+
+          if (!tExpanded) return;
+
+          // Gather all category names that appear across the visible months for this type.
+          const catSet = new Set();
+          monthKeys.forEach(k => {
+            (typeBudget[k]?.items || []).forEach(it => catSet.add(it.category || 'Uncategorized'));
+          });
+          // Known categories for the type (so empty categories can still be edited).
+          ((this.data.typeCategories && this.data.typeCategories[type]) || []).forEach(c => catSet.add(c));
+          const cats = Array.from(catSet).sort();
+
+          if (cats.length === 0) {
+            html += `<tr><td style="padding-left:24px;color:var(--text-tertiary);font-size:11px;position:sticky;left:0;background:var(--surface);">No categories — add via item editor</td><td colspan="${nCols}"></td></tr>`;
+            return;
+          }
+
+          cats.forEach(cat => {
+            const catKey = type + '||' + cat;
+            const cExpanded = !!this.gridExpandedCats[catKey];
+            // Category total per month.
+            const catMonthTotals = monthKeys.map(k =>
+              (typeBudget[k]?.items || []).filter(it => (it.category || 'Uncategorized') === cat)
+                .reduce((s, it) => s + (parseFloat(it.amount) || 0), 0)
+            );
+            html += `<tr class="grid-cat-row" data-grid-toggle-cat="${this.esc(catKey)}" style="cursor:pointer;">
+              <td style="padding-left:20px;font-weight:600;color:var(--text-secondary);position:sticky;left:0;z-index:2;background:var(--bg);">
+                <span style="display:inline-block;width:10px;color:var(--text-tertiary);">${cExpanded ? '▾' : '▸'}</span>${this.esc(cat)}
+              </td>
+              ${catMonthTotals.map(a => `<td style="text-align:right;color:var(--text-secondary);font-weight:600;background:var(--bg);">${a ? this.fmtShort(a) : '-'}</td>`).join('')}
+            </tr>`;
+
+            if (!cExpanded) return;
+
+            // Distinct item names within this category across visible months.
+            const nameSet = new Set();
+            monthKeys.forEach(k => {
+              (typeBudget[k]?.items || []).filter(it => (it.category || 'Uncategorized') === cat)
+                .forEach(it => nameSet.add(it.name || ''));
+            });
+            const names = Array.from(nameSet).filter(n => n !== '');
+
+            names.forEach(name => {
+              html += `<tr class="grid-item-row">
+                <td style="padding-left:34px;position:sticky;left:0;z-index:2;background:var(--surface);font-size:12px;min-width:130px;">
+                  <span style="display:flex;align-items:center;gap:6px;"><span style="flex:1;overflow:hidden;text-overflow:ellipsis;">${this.esc(name)}</span><button type="button" onclick="event.stopPropagation();app.deleteGridItem('${this.esc(type)}','${this.esc(cat)}','${this.esc(name)}')" aria-label="Delete ${this.esc(name)}" style="flex:0 0 auto;width:18px;height:18px;line-height:1;padding:0;border:none;background:transparent;color:var(--text-tertiary);cursor:pointer;font-size:13px;">✕</button></span>
+                </td>
+                ${monthKeys.map(k => {
+                  const it = (typeBudget[k]?.items || []).find(x => (x.category || 'Uncategorized') === cat && (x.name || '') === name);
+                  const val = it ? (it.amount || '') : '';
+                  return `<td style="padding:2px;"><input type="text" inputmode="decimal" value="${val}" data-gridcell="${this.esc(type)}|${k}|${this.esc(cat)}|${this.esc(name)}" onchange="app.setGridCell(this)" oncontextmenu="app.openCellMenu(this,event)" ontouchstart="app.cellTouchStart(this,event)" ontouchend="app.cellTouchEnd()" ontouchmove="app.cellTouchEnd()" style="width:64px;text-align:right;padding:4px 6px;font-size:12px;border:1px solid var(--glass-border-dark);border-radius:6px;background:var(--surface);color:var(--text);font-variant-numeric:tabular-nums;" aria-label="${this.esc(name)} ${k}"></td>`;
+                }).join('')}
+              </tr>`;
+            });
+
+            // Add-item row: small + button.
+            html += `<tr class="grid-additem-row">
+              <td colspan="${nCols + 1}" style="padding:3px 8px 5px 34px;position:sticky;left:0;background:var(--surface);">
+                <button type="button" onclick="app.addGridItem('${this.esc(type)}','${this.esc(cat)}')" aria-label="Add item to ${this.esc(cat)}" title="Add item to ${this.esc(cat)}" style="width:22px;height:22px;border-radius:50%;border:1px solid var(--glass-border-dark);background:var(--bg);color:var(--text-secondary);font-size:15px;line-height:1;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0;">+</button>
+              </td>
+            </tr>`;
+          });
+        });
+
+        return html;
+      }
+
+      /** Open the frequency picker for a grid item; applies across all its months. */
+      openGridFreqPicker(type, cat, name) {
+        const budget = this.data.budgets[type] || {};
+        let current = 'One-time';
+        Object.values(budget).forEach(md => {
+          (md.items || []).forEach(it => {
+            if ((it.category || 'Uncategorized') === cat && (it.name || '') === name && it.frequency) current = it.frequency;
+          });
+        });
+        const opts = ['One-time', 'Monthly', 'Quarterly', 'Half-Yearly', 'Annually'];
+        this.openPicker('Frequency · ' + name, opts.map(o => ({ value: o, label: o })), (val) => {
+          this._nwCache = null;
+          this.pushUndo('Set item frequency');
+          Object.keys(budget).forEach(month => {
+            const md = budget[month];
+            if (!md || !Array.isArray(md.items)) return;
+            let changed = false;
+            md.items.forEach(it => {
+              if ((it.category || 'Uncategorized') === cat && (it.name || '') === name) { it.frequency = val; changed = true; }
+            });
+            if (changed) this.persistBudgetItems(type, month, md.items.map(i => ({ ...i })));
+          });
+          this.save();
+          this.renderGrid();
+          if (this.data.currentTab === 'home') this.renderDashboard();
+          this.toast('Frequency set to ' + val, 'ok');
+        }, current);
+      }
+
+      /** Delete an item (by category+name) from every month it appears in. */
+      deleteGridItem(type, cat, name) {
+        const budget = this.data.budgets[type] || {};
+        this.confirmCallback = () => {
+          this._nwCache = null;
+          this.pushUndo('Delete budget item');
+          Object.keys(budget).forEach(month => {
+            const md = budget[month];
+            if (!md || !Array.isArray(md.items)) return;
+            const before = md.items.length;
+            const kept = md.items.filter(it => !((it.category || 'Uncategorized') === cat && (it.name || '') === name));
+            if (kept.length !== before) this.persistBudgetItems(type, month, kept.map(i => ({ ...i })));
+          });
+          this.save();
+          this.renderGrid();
+          if (this.data.currentTab === 'home') this.renderDashboard();
+          this.closeModal('confirmModal');
+          this.toast('Item deleted', 'ok');
+        };
+        const ct = document.getElementById('confirmTitle');
+        const cb = document.getElementById('confirmBody');
+        const cbtn = document.getElementById('confirmBtn');
+        if (ct) ct.textContent = 'Delete this item?';
+        if (cb) cb.textContent = `“${name}” will be removed from every month under ${cat}. This can be undone once.`;
+        if (cbtn) { cbtn.textContent = 'Delete'; cbtn.className = 'btn btn-danger'; cbtn.onclick = this.confirmCallback; }
+        this.openModal('confirmModal');
+      }
+
+      /** Edit one item's amount in one month from a grid cell. */
+      setGridCell(inputEl) {
+        const spec = inputEl.getAttribute('data-gridcell');
+        if (!spec) return;
+        const [type, month, cat, name] = spec.split('|');
+        const amount = this.sanitizeAmount(inputEl.value);
+        if (!this.data.budgets[type]) this.data.budgets[type] = {};
+        if (!this.data.budgets[type][month]) this.data.budgets[type][month] = { amount: 0, items: [] };
+        const md = this.data.budgets[type][month];
+        if (!Array.isArray(md.items)) md.items = [];
+        let it = md.items.find(x => (x.category || 'Uncategorized') === cat && (x.name || '') === name);
+        if (it) {
+          it.amount = amount;
+        } else if (amount > 0) {
+          md.items.push({ name, amount, category: cat, frequency: 'One-time' });
+        }
+        // Re-persist this type/month (reconciles totals + recurring) without rebuilding live array.
+        this.persistBudgetItems(type, month, md.items.map(i => ({ ...i })));
+        this.save();
+        this.renderGrid();
+        if (this.data.currentTab === 'home') this.renderDashboard();
+      }
+
+      // ===== GRID CELL COPY / PASTE =====
+      cellTouchStart(inputEl, ev) {
+        this._cellPressTimer = setTimeout(() => {
+          this._cellPressTimer = null;
+          this.openCellMenu(inputEl, ev);
+        }, 500);
+      }
+      cellTouchEnd() {
+        if (this._cellPressTimer) { clearTimeout(this._cellPressTimer); this._cellPressTimer = null; }
+      }
+
+      /** Open the per-cell action menu (Copy / Paste / Paste to…). */
+      openCellMenu(inputEl, ev) {
+        if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+        const spec = inputEl.getAttribute('data-gridcell');
+        if (!spec) return;
+        const [type, month, cat, name] = spec.split('|');
+        const value = this.sanitizeAmount(inputEl.value);
+        const clip = this._gridClipboard;
+        const hasClip = clip && clip.value > 0;
+        const sameRow = hasClip && clip.type === type && clip.cat === cat && clip.name === name;
+
+        const items = [];
+        if (value > 0) items.push({ value: 'copy', label: `Copy ₹${value.toLocaleString('en-IN')}` });
+        if (hasClip) {
+          items.push({ value: 'paste', label: `Paste ₹${clip.value.toLocaleString('en-IN')}` });
+          if (sameRow) {
+            items.push({ value: 'paste_rest', label: 'Paste to rest of year' });
+            items.push({ value: 'paste_next3', label: 'Paste to next 3 months' });
+            items.push({ value: 'paste_pick', label: 'Paste to… (pick months)' });
+          } else {
+            items.push({ value: 'paste_row_note', label: `(multi-paste works on “${clip.name}” row)` });
+          }
+        }
+
+        if (items.length === 0) {
+          this.toast('Enter a value first, then long-press to copy', 'ok');
+          return;
+        }
+        this.openPicker('Cell · ' + name, items, (choice) => {
+          if (choice === 'copy') {
+            this._gridClipboard = { value, type, cat, name, srcMonth: month };
+            this.toast(`Copied ₹${value.toLocaleString('en-IN')}`, 'ok');
+            this.renderGrid();
+          } else if (choice === 'paste') {
+            this._writeGridValue(type, month, cat, name, clip.value);
+            this._afterGridEdit();
+            this.toast('Pasted', 'ok');
+          } else if (choice === 'paste_rest') {
+            this._multiPaste(clip, this._monthsFrom(month, 'rest'));
+          } else if (choice === 'paste_next3') {
+            this._multiPaste(clip, this._monthsFrom(month, 'next3'));
+          } else if (choice === 'paste_pick') {
+            // The cell menu reuses the picker modal, and the delegated handler calls
+            // closePicker() right after this callback. Defer so the month picker opens
+            // *after* the first picker finishes closing, otherwise it's torn down instantly.
+            setTimeout(() => this._openMonthMultiPicker(clip, month), 0);
+          }
+          // paste_row_note is informational — do nothing.
+        }, null);
+      }
+
+      /** Compute target month keys within the current grid year. */
+      _gridMonthKeys() {
+        const year = this.data.planYear || 2026;
+        if (this.gridMode === 'fy') {
+          return ['04','05','06','07','08','09','10','11','12'].map(m => `${year}-${m}`)
+            .concat(['01','02','03'].map(m => `${year + 1}-${m}`));
+        }
+        return ['01','02','03','04','05','06','07','08','09','10','11','12'].map(m => `${year}-${m}`);
+      }
+
+      _monthsFrom(fromKey, mode) {
+        const all = this._gridMonthKeys();
+        const idx = all.indexOf(fromKey);
+        if (idx < 0) return [];
+        if (mode === 'rest') return all.slice(idx); // includes the source month too
+        if (mode === 'next3') return all.slice(idx, idx + 4); // source + next 3
+        return all;
+      }
+
+      _writeGridValue(type, month, cat, name, amount) {
+        if (!this.data.budgets[type]) this.data.budgets[type] = {};
+        if (!this.data.budgets[type][month]) this.data.budgets[type][month] = { amount: 0, items: [] };
+        const md = this.data.budgets[type][month];
+        if (!Array.isArray(md.items)) md.items = [];
+        let it = md.items.find(x => (x.category || 'Uncategorized') === cat && (x.name || '') === name);
+        if (it) { it.amount = amount; }
+        else if (amount > 0) {
+          // Carry the item's frequency from any month that has it, so pasted cells inherit it.
+          let freq = 'One-time';
+          Object.values(this.data.budgets[type]).forEach(m => (m.items || []).forEach(x => {
+            if ((x.category || 'Uncategorized') === cat && (x.name || '') === name && x.frequency) freq = x.frequency;
+          }));
+          md.items.push({ name, amount, category: cat, frequency: freq });
+        }
+        this.persistBudgetItems(type, month, md.items.map(i => ({ ...i })));
+      }
+
+      _multiPaste(clip, monthKeys) {
+        if (!clip || !monthKeys.length) return;
+        this._nwCache = null;
+        this.pushUndo('Paste budget value');
+        monthKeys.forEach(mk => this._writeGridValue(clip.type, mk, clip.cat, clip.name, clip.value));
+        this._afterGridEdit();
+        this.toast(`Pasted to ${monthKeys.length} month${monthKeys.length === 1 ? '' : 's'}`, 'ok');
+      }
+
+      _afterGridEdit() {
+        this.save();
+        this.renderGrid();
+        if (this.data.currentTab === 'home') this.renderDashboard();
+      }
+
+      /** Month multi-select for "paste to… (pick months)". */
+      _openMonthMultiPicker(clip, fromKey) {
+        const all = this._gridMonthKeys();
+        const labels = all.map(k => {
+          const [y, m] = k.split('-');
+          const names = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+          return names[parseInt(m, 10) - 1] + " '" + y.slice(2);
+        });
+        const picked = new Set([fromKey]);
+        const titleEl = document.getElementById('pickerTitle');
+        const bodyEl = document.getElementById('pickerBody');
+        if (!titleEl || !bodyEl) return;
+        bodyEl._pickerCallback = null; // ensure no stale single-select callback fires
+        titleEl.textContent = `Paste ₹${clip.value.toLocaleString('en-IN')} to…`;
+        const render = () => {
+          bodyEl.innerHTML = `
+            <div style="padding:6px 4px;">
+              <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:12px;">
+                ${all.map((k, i) => `<button type="button" data-mk="${k}" style="padding:8px 4px;font-size:12px;border-radius:8px;border:1px solid ${picked.has(k) ? 'var(--accent)' : 'var(--glass-border-dark)'};background:${picked.has(k) ? 'var(--accent)' : 'var(--surface)'};color:${picked.has(k) ? 'var(--accent-inverse)' : 'var(--text)'};cursor:pointer;font-weight:600;">${labels[i]}</button>`).join('')}
+              </div>
+              <button type="button" id="mpApply" class="btn btn-primary" style="width:100%;justify-content:center;">Paste to ${picked.size} month${picked.size === 1 ? '' : 's'}</button>
+            </div>`;
+          bodyEl.querySelectorAll('[data-mk]').forEach(b => b.onclick = () => {
+            const k = b.dataset.mk;
+            if (picked.has(k)) picked.delete(k); else picked.add(k);
+            render();
+          });
+          const apply = document.getElementById('mpApply');
+          if (apply) apply.onclick = () => { this.closePicker(); this._multiPaste(clip, Array.from(picked)); };
+        };
+        render();
+        this.openModal('pickerModal');
+      }
+
+      /** Add a blank named item to a category, in the first visible month, then expand. */
+      addGridItem(type, cat) {
+        const name = (window.prompt ? window.prompt('Item name for ' + cat + ':') : '') || '';
+        const trimmed = name.trim();
+        if (!trimmed) return;
+        const month = this.data.currentMonth;
+        if (!this.data.budgets[type]) this.data.budgets[type] = {};
+        if (!this.data.budgets[type][month]) this.data.budgets[type][month] = { amount: 0, items: [] };
+        const md = this.data.budgets[type][month];
+        if (!Array.isArray(md.items)) md.items = [];
+        if (!md.items.some(x => (x.category || 'Uncategorized') === cat && (x.name || '') === trimmed)) {
+          md.items.push({ name: trimmed, amount: 0, category: cat, frequency: 'One-time' });
+        }
+        this.persistBudgetItems(type, month, md.items.map(i => ({ ...i })));
+        this.save();
+        this.gridExpandedTypes[type] = true;
+        this.gridExpandedCats[type + '||' + cat] = true;
+        this.renderGrid();
+      }
+
+      toggleGridType(type) {
+        if (!this.gridExpandedTypes) this.gridExpandedTypes = {};
+        this.gridExpandedTypes[type] = !this.gridExpandedTypes[type];
+        this.renderGrid();
+      }
+
+      toggleGridCat(catKey) {
+        if (!this.gridExpandedCats) this.gridExpandedCats = {};
+        this.gridExpandedCats[catKey] = !this.gridExpandedCats[catKey];
+        this.renderGrid();
       }
 
       fmtShort(n) {

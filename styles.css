@@ -336,11 +336,25 @@
     .filter-bar::-webkit-scrollbar { display:none; }
 
     .annual-table-wrapper { overflow-x:auto; margin:0 -14px; padding:0 14px; -webkit-overflow-scrolling:touch; }
-    .annual-table { min-width:800px; border-collapse:separate; border-spacing:0; font-size:11px; }
-    .annual-table th, .annual-table td { padding:6px 5px; text-align:center; border-bottom:1px solid var(--glass-border-dark); white-space:nowrap; }
-    .annual-table th { font-weight:700; color:var(--text-tertiary); font-size:9px; text-transform:uppercase; letter-spacing:0.08em; position:sticky; top:0; background:var(--bg); z-index:10; }
+    .annual-table { min-width:800px; border-collapse:separate; border-spacing:0; font-size:11px; border:1px solid var(--glass-border-dark); border-radius:var(--radius-lg); overflow:hidden; box-shadow:0 1px 3px rgba(0,0,0,0.04); }
+    .annual-table th, .annual-table td { padding:7px 6px; text-align:center; border-bottom:1px solid color-mix(in srgb, var(--glass-border-dark) 45%, transparent); white-space:nowrap; }
+    .annual-table tr:last-child td { border-bottom:none; }
+    .annual-table th { font-weight:600; color:var(--text-tertiary); font-size:9px; text-transform:uppercase; letter-spacing:0.1em; position:sticky; top:0; background:var(--bg); z-index:10; }
     .annual-table th:first-child, .annual-table td:first-child { text-align:left; font-weight:600; position:sticky; left:0; background:var(--bg); z-index:20; min-width:110px; }
     .annual-table td:first-child { background:var(--surface); }
+    .annual-table td { font-variant-numeric:tabular-nums; }
+    /* Premium type rows: soft tint + 3px left accent bar instead of full color flood. */
+    .grid-type-cell { background:var(--trow-bg)!important; color:var(--trow-fg); font-weight:700; letter-spacing:-0.01em; box-shadow:inset 3px 0 0 var(--trow-accent); }
+    .grid-type-num { background:var(--trow-bg); color:var(--trow-fg); font-weight:700; text-align:right; }
+    [data-theme="dark"] .grid-type-cell { background:var(--trow-bg-d)!important; color:var(--trow-fg-d); box-shadow:inset 3px 0 0 var(--trow-accent-d); }
+    [data-theme="dark"] .grid-type-num { background:var(--trow-bg-d); color:var(--trow-fg-d); }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) .grid-type-cell { background:var(--trow-bg-d)!important; color:var(--trow-fg-d); box-shadow:inset 3px 0 0 var(--trow-accent-d); }
+      :root:not([data-theme="light"]) .grid-type-num { background:var(--trow-bg-d); color:var(--trow-fg-d); }
+    }
+    .grid-cat-row td:first-child { background:var(--bg); }
+    .grid-item-row td:first-child { background:var(--surface); }
+    .grid-item-row input:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
     .annual-cell { cursor:pointer; border-radius:var(--radius-sm); transition:background 150ms; font-weight:500; }
     .annual-cell:hover { background:var(--bg); }
     .annual-cell.has-budget { font-weight:700; }
