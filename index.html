@@ -1,0 +1,1049 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Expenses">
+  <meta name="theme-color" content="#F2F2F2" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#1A1A1A" media="(prefers-color-scheme: dark)">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/svg+xml" href="expense-icon.svg">
+  <link rel="icon" type="image/png" sizes="192x192" href="expense-icon-192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="expense-icon-512.png">
+  <link rel="apple-touch-icon" href="expense-icon-192.png">
+  <title>Expense Tracker</title>
+  <!-- Inter font loaded from system stack for offline capability -->
+  <!-- Fallback: system-ui, -apple-system, Segoe UI, Roboto, sans-serif -->
+  <link rel="stylesheet" href="styles.css">
+
+</head>
+<body>
+
+  <div class="toast-container" id="toastContainer" role="status" aria-live="polite" aria-atomic="true"></div>
+
+  <div class="app">
+    <header class="app-header">
+      <div class="header-bar">
+        <div class="brand">
+          <div class="brand-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+          </div>
+          <div class="brand-text"><h1>Expenses</h1></div>
+        </div>
+        <div class="header-controls">
+          <button class="chip" onclick="app.openProfilePicker()" id="profileChip" style="padding:4px 10px;font-size:11px;" aria-label="Switch profile">
+            <span id="currentProfileLabel">Self</span>
+            <svg width="8" height="5" viewBox="0 0 10 6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-left:3px;" aria-hidden="true"><path d="M1 1L5 5L9 1"/></svg>
+          </button>
+          <button class="chip" onclick="app.openMonthPicker()" id="monthChip" style="padding:4px 10px;font-size:11px;" aria-label="Switch month">
+            <span id="currentMonthLabel">May 2026</span>
+            <svg width="8" height="5" viewBox="0 0 10 6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-left:3px;" aria-hidden="true"><path d="M1 1L5 5L9 1"/></svg>
+          </button>
+          <button class="icon-btn" onclick="app.toggleHeaderMenu(event)" title="Settings" aria-label="Open settings menu" aria-haspopup="true" aria-expanded="false" id="headerMenuBtn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          </button>
+        </div>
+        <div class="header-menu" id="headerMenu" role="menu">
+          <button class="header-menu-item" id="undoBtn" onclick="app.undo();app.closeHeaderMenu()" role="menuitem">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>
+            <span>Undo</span>
+          </button>
+          <button class="header-menu-item" onclick="app.toggleTheme();app.closeHeaderMenu()" role="menuitem">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <span>Theme</span>
+          </button>
+          <button class="header-menu-item" onclick="app.openBackupModal();app.closeHeaderMenu()" role="menuitem">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 6v6l4 2"/></svg>
+            <span>Backup</span>
+          </button>
+          <button class="header-menu-item" onclick="app.openTypeModal();app.closeHeaderMenu()" role="menuitem">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+            <span>Types</span>
+          </button>
+          <button class="header-menu-item" onclick="app.openProfileModal();app.closeHeaderMenu()" role="menuitem">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            <span>Profiles</span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <div class="main-scroll" id="mainScroll" aria-live="polite" aria-atomic="false">
+      <!-- Home -->
+      <section id="homeSection">
+        <div class="card progress-card">
+          <div class="progress-header">
+            <div><div class="progress-label">Monthly Budget</div></div>
+            <div class="progress-value" id="dashProgressValue">0%</div>
+          </div>
+          <div class="progress-track"><div class="progress-fill" id="dashProgressFill" style="width:0%"></div></div>
+          <p id="dashProgressSub" style="font-size:12px;color:var(--text-tertiary);margin-top:10px;font-weight:500;">0 spent · 0 budget</p>
+        </div>
+
+        <div class="summary-grid">
+          <div class="summary-card">
+            <div class="summary-label">Spent</div>
+            <div class="summary-value" id="dashSpent">0</div>
+            <div class="summary-sub" id="dashSpentSub">This month</div>
+          </div>
+          <div class="summary-card" id="dashBudgetCard">
+            <div class="summary-label">Budget</div>
+            <div class="summary-value" id="dashBudget">0</div>
+            <div class="summary-sub" id="dashBudgetSub">Remaining 0</div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-bottom:10px;">
+          <div class="cat-header">
+            <div class="cat-title">Cash Flow Trend</div>
+            <span class="cat-badge">6 Months</span>
+          </div>
+          <div id="dashNetWorth"></div>
+        </div>
+
+        <div class="card" style="margin-bottom:10px;">
+          <div class="cat-header">
+            <div class="cat-title">By Expense Type</div>
+            <span class="cat-badge" id="dashCategoryCount">0</span>
+          </div>
+          <div id="dashCategories"></div>
+        </div>
+
+        <div class="card" style="margin-bottom:10px;">
+          <div class="cat-header">
+            <div class="cat-title">Tracked Expenses</div>
+            <span class="cat-badge" id="dashTrackedCount">0</span>
+          </div>
+          <div id="dashTracked"></div>
+        </div>
+
+        <div class="card" style="margin-top:10px;">
+          <div class="cat-header">
+            <div class="cat-title">Active Events</div>
+            <span class="cat-badge" id="dashEventCount">0</span>
+          </div>
+          <div id="dashEvents"></div>
+        </div>
+
+        <div class="card" style="margin-top:10px;">
+          <div class="collapse-toggle" onclick="app.toggleCollapse(this, 'dashGoalsWrap')" style="padding:0;" role="button" tabindex="0" aria-expanded="false" aria-controls="dashGoalsWrap">
+            <div class="cat-header" style="margin-bottom:0;">
+              <div class="cat-title">Goals</div>
+              <button class="chip" onclick="event.stopPropagation();app.openGoalModal()">Manage</button>
+            </div>
+          </div>
+          <div class="collapsible" id="dashGoalsWrap">
+            <div id="dashGoals"></div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:10px;">
+          <div class="collapse-toggle" onclick="app.toggleCollapse(this, 'dashAccountsWrap')" style="padding:0;" role="button" tabindex="0" aria-expanded="false" aria-controls="dashAccountsWrap">
+            <div class="cat-header" style="margin-bottom:0;">
+              <div class="cat-title">Account Balances</div>
+              <button class="chip" onclick="event.stopPropagation();app.openAccountModal()">Edit</button>
+            </div>
+          </div>
+          <div class="collapsible" id="dashAccountsWrap">
+            <div id="dashAccounts"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Add -->
+      <section id="addSection" style="display:none;">
+        <div class="home-title">New Transaction</div>
+
+        <div class="add-hero">
+          <div class="add-hero-label">Amount</div>
+          <div style="display:flex;align-items:center;justify-content:center;gap:4px;">
+            <span style="font-size:24px;font-weight:700;color:var(--text-tertiary);">₹</span>
+            <input type="text" id="txAmount" class="add-hero-input" placeholder="0" required style="width:180px;" inputmode="decimal" aria-label="Transaction amount">
+          </div>
+        </div>
+
+        <div class="add-section-title">Expense Type</div>
+        <div class="add-quick-row" id="txTypeChips"></div>
+        <input type="hidden" id="txType" value="Earning" required>
+
+        <div class="add-section-title">Category</div>
+        <div class="add-quick-row" id="txCategoryChips">
+          <span style="font-size:12px;color:var(--text-tertiary);padding:6px 0;">Select an expense type first</span>
+        </div>
+        <input type="hidden" id="txCategory" required>
+
+        <div class="add-section-title">Budget Items</div>
+        <div class="add-quick-row" id="txBudgetChips">
+          <span style="font-size:12px;color:var(--text-tertiary);padding:6px 0;">Select an expense type to see budget items</span>
+        </div>
+
+        <div class="add-glass">
+          <div class="field" style="margin-bottom:10px;">
+            <label style="font-size:9px;">Item *</label>
+            <div class="input-wrapper">
+              <input type="text" id="txItem" placeholder="e.g. Rice" required style="box-shadow:none;border:1px solid var(--glass-border-dark);padding:10px 12px;width:100%;" oninput="app.handleItemAutocomplete(this)" autocomplete="off" aria-label="Item name">
+              <div class="autocomplete-list" id="ac-item"></div>
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field" style="margin-bottom:0;">
+              <label style="font-size:9px;">Date</label>
+              <div class="inp picker-trigger" id="txDateDisplay" onclick="app.openDatePicker()" style="padding:10px 12px;font-size:13px;" role="button" tabindex="0" aria-label="Select transaction date">Select Date</div>
+              <input type="hidden" id="txDate" required>
+            </div>
+            <div class="field" style="margin-bottom:0;">
+              <label style="font-size:9px;">Mode</label>
+              <div class="inp picker-trigger" id="txModeDisplay" onclick="app.openModePicker()" style="padding:10px 12px;font-size:13px;" role="button" tabindex="0" aria-label="Select payment mode">Select</div>
+              <input type="hidden" id="txMode">
+            </div>
+          </div>
+          <div class="field" style="margin-top:10px;margin-bottom:0;">
+            <label style="font-size:9px;">Sub-mode</label>
+            <div class="inp picker-trigger" id="txSubModeDisplay" onclick="app.openSubModePicker()" style="padding:10px 12px;font-size:13px;" role="button" tabindex="0" aria-label="Select sub mode">Select Sub-mode</div>
+            <input type="hidden" id="txSubMode">
+          </div>
+        </div>
+
+        <div class="add-glass" style="padding:0;">
+          <div class="collapse-toggle" onclick="app.toggleCollapse(this, 'addItemAdvanced')" style="padding:10px 12px;" role="button" tabindex="0" aria-expanded="false" aria-controls="addItemAdvanced">
+            <span>Item Advanced Options</span>
+          </div>
+          <div class="collapsible" id="addItemAdvanced">
+            <div style="padding:0 12px 10px;">
+              <form id="txForm" onsubmit="app.saveTransaction(event)">
+                <input type="hidden" id="txId">
+                <div class="field-row">
+                  <div class="field"><label>Vendor</label><div class="input-wrapper"><input type="text" class="inp" id="txVendor" placeholder="e.g. Walmart" autocomplete="off" oninput="app.handleAutocomplete('vendor', this)" style="box-shadow:none;" aria-label="Vendor"><div class="autocomplete-list" id="ac-vendor"></div></div></div>
+                  <div class="field"><label>Brand</label><div class="input-wrapper"><input type="text" class="inp" id="txBrand" placeholder="e.g. Nestle" autocomplete="off" oninput="app.handleAutocomplete('brand', this)" style="box-shadow:none;" aria-label="Brand"><div class="autocomplete-list" id="ac-brand"></div></div></div>
+                </div>
+
+                <div style="border-top:1px solid var(--glass-border-dark);margin:10px 0;padding-top:10px;">
+                  <div class="add-section-title">Product Lifecycle</div>
+                  <div class="field" style="margin-bottom:10px;">
+                    <div class="recurring-row" onclick="app.toggleLifecycle()" style="border-top:none;margin-top:0;padding-top:0;" role="button" tabindex="0" aria-label="Toggle product lifecycle tracking">
+                      <span class="recurring-label">Enable Product Lifecycle</span>
+                      <div class="toggle" id="txLifecycleToggle" aria-hidden="true"><div class="toggle-knob"></div></div>
+                    </div>
+                    <input type="hidden" id="txLifecycleEnabled" value="false">
+                    <p style="font-size:10px;color:var(--text-tertiary);margin-top:2px;font-weight:500;">Track consumption status for this product</p>
+                  </div>
+                  <div id="txLifecycleFields" style="display:none;">
+                    <div class="field-row">
+                      <div class="field" style="margin-bottom:0;">
+                        <label>Start Date</label>
+                        <div class="inp picker-trigger" id="txStartDateDisplay" onclick="app.openTxStartDatePicker()" style="padding:10px 12px;font-size:13px;" role="button" tabindex="0">Select Date</div>
+                        <input type="hidden" id="txStartDate">
+                      </div>
+                      <div class="field" style="margin-bottom:0;">
+                        <label>Number of Days</label>
+                        <input type="number" id="txNumDays" placeholder="e.g. 30" min="1" style="box-shadow:none;" oninput="app.calcTxEndDate()" aria-label="Number of days">
+                      </div>
+                    </div>
+                    <div class="field" style="margin-bottom:8px;">
+                      <label>End Date</label>
+                      <div class="inp" id="txEndDateDisplay" style="background:var(--bg);color:var(--text-secondary);font-size:13px;box-shadow:var(--shadow-neu-inset);cursor:default;">—</div>
+                      <input type="hidden" id="txEndDate">
+                    </div>
+                    <div style="margin-bottom:10px;">
+                      <div class="type-label">Status</div>
+                      <div class="type-toggle" id="txStatusToggle">
+                        <button type="button" class="type-btn on" onclick="app.selectTxStatus('Planned', this)">Planned</button>
+                        <button type="button" class="type-btn" onclick="app.selectTxStatus('In-Progress', this)">In-Progress</button>
+                        <button type="button" class="type-btn" onclick="app.selectTxStatus('Completed', this)">Completed</button>
+                        <button type="button" class="type-btn" onclick="app.selectTxStatus('Overdue', this)">Overdue</button>
+                      </div>
+                      <input type="hidden" id="txStatus" value="Planned">
+                    </div>
+                  </div>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <div class="add-glass" style="padding:0;">
+          <div class="collapse-toggle" onclick="app.toggleCollapse(this, 'addTxAdvanced')" style="padding:10px 12px;" role="button" tabindex="0" aria-expanded="false" aria-controls="addTxAdvanced">
+            <span>Transaction Advanced Options</span>
+          </div>
+          <div class="collapsible" id="addTxAdvanced">
+            <div style="padding:0 12px 10px;">
+              <div style="margin-bottom:10px;">
+                <div class="type-label">Frequency</div>
+                <div class="recurring-row" onclick="app.toggleFreqType()" style="border-top:none;margin-top:0;padding-top:0;" role="button" tabindex="0" aria-label="Toggle fixed or variable frequency">
+                  <span class="recurring-label" id="txFreqTypeLabel">Variable</span>
+                  <div class="toggle" id="txFreqTypeToggle" aria-hidden="true"><div class="toggle-knob"></div></div>
+                </div>
+                <input type="hidden" id="txFreqType" value="Variable">
+                <div id="txFreqPills" style="margin-top:8px;display:none;">
+                  <div class="type-toggle" id="txFreqToggle" style="flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px;">
+                    <button type="button" class="type-btn on" onclick="app.selectFreq('Monthly', this)">Monthly</button>
+                    <button type="button" class="type-btn" onclick="app.selectFreq('Quarterly', this)">Quarterly</button>
+                    <button type="button" class="type-btn" onclick="app.selectFreq('Half-Yearly', this)">Half-Yearly</button>
+                    <button type="button" class="type-btn" onclick="app.selectFreq('Annually', this)">Annually</button>
+                  </div>
+                  <input type="hidden" id="txFrequency" value="Monthly">
+                  <div class="field" style="margin-top:10px;margin-bottom:0;" id="txRecurrenceCountField">
+                    <label style="font-size:9px;">Number of Recurrences</label>
+                    <div class="inp picker-trigger" id="txRecurrenceCountDisplay" onclick="app.openRecurrenceCountPicker()" style="padding:10px 12px;font-size:13px;" role="button" tabindex="0">Unlimited</div>
+                    <input type="hidden" id="txRecurrenceCount" value="">
+                    <p style="font-size:10px;color:var(--text-tertiary);margin-top:2px;font-weight:500;">How many times to repeat. Blank = unlimited.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="field" style="margin-bottom:10px;">
+                <div class="recurring-row" onclick="app.toggleSplit()" role="button" tabindex="0" aria-label="Toggle split categories">
+                  <span class="recurring-label">Split into multiple categories</span>
+                  <div class="toggle" id="txSplitToggle" aria-hidden="true"><div class="toggle-knob"></div></div>
+                </div>
+                <input type="hidden" id="txSplit" value="false">
+              </div>
+              <div id="txSplitContainer" style="display:none;margin-bottom:10px;">
+                <div class="field"><label>Split Items</label><div id="txSplitList"></div><button type="button" class="btn" style="margin-top:6px;width:100%;font-size:12px;" onclick="app.addSplitRow()">+ Add Split</button></div>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;padding:6px 0;border-top:1px solid var(--glass-border-dark);">
+                  <span style="font-size:11px;color:var(--text-secondary);font-weight:600;">Total from splits</span>
+                  <span style="font-size:13px;font-weight:700;" id="txSplitTotal">₹0</span>
+                </div>
+                <p style="font-size:10px;color:var(--danger);margin-top:2px;font-weight:500;display:none;" id="txSplitError">Split total does not match transaction amount.</p>
+              </div>
+              
+              <div class="field" id="txTransferToField" style="display:none;">
+                <label>Transfer To</label>
+                <div class="inp picker-trigger" id="txTransferToDisplay" onclick="app.openTransferToPicker()" style="padding:10px 12px;font-size:13px;" role="button" tabindex="0" aria-label="Select transfer destination">Select Account</div>
+                <input type="hidden" id="txTransferTo">
+              </div>
+              <div class="field">
+                <label>Event (Optional)</label>
+                <div class="inp picker-trigger" id="txEventDisplay" onclick="app.openEventPicker()" style="padding:10px 12px;font-size:13px;" role="button" tabindex="0" aria-label="Select event">Select Event</div>
+                <input type="hidden" id="txEventId">
+              </div>
+              <div style="height:80px;"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="add-sticky">
+          <button type="button" class="btn" onclick="app.resetForm()" style="flex:1;">Clear</button>
+          <button type="button" class="btn btn-primary" onclick="document.getElementById('txForm').dispatchEvent(new Event('submit'))" style="flex:1;">Save</button>
+        </div>
+
+        <div style="height:80px;"></div>
+        <div class="card" style="margin-top:10px;">
+          <button class="slot" onclick="app.openCopyMonthPicker()" style="width:100%;min-height:44px;" aria-label="Copy expenses from another month">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            Copy Expenses from Another Month
+          </button>
+        </div>
+      </section>
+
+      <!-- Plan -->
+      <section id="planSection" style="display:none;">
+        <div class="home-title">Budget Plan</div>
+        <div class="segmented">
+          <button class="segmented-btn on" onclick="app.setPlanView('categories', this)">Categories</button>
+          <button class="segmented-btn" onclick="app.setPlanView('grid', this)">Grid</button>
+          <button class="segmented-btn" onclick="app.setPlanView('events', this)">Events</button>
+        </div>
+
+        <div class="year-bar" id="planYearBar">
+          <button class="icon-btn" onclick="app.changePlanYear(-1)" style="width:28px;height:28px;font-size:16px;" aria-label="Previous year">‹</button>
+          <div class="inp picker-trigger" id="planYearDisplay" style="min-width:90px;text-align:center;padding:5px 8px;" onclick="app.openYearPicker()" role="button" tabindex="0">2026</div>
+          <button class="icon-btn" onclick="app.changePlanYear(1)" style="width:28px;height:28px;font-size:16px;" aria-label="Next year">›</button>
+        </div>
+
+        <div class="card" style="margin-bottom:12px;padding:14px;">
+          <div class="section-title">Income vs Budgeted</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:8px;">
+            <div style="text-align:center;">
+              <div style="font-size:9px;color:var(--text-secondary);font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:3px;">Income</div>
+              <div style="font-size:16px;font-weight:600;color:var(--success);" id="planIncomeTotal">₹0</div>
+            </div>
+            <div style="text-align:center;">
+              <div style="font-size:9px;color:var(--text-secondary);font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:3px;">Budgeted</div>
+              <div style="font-size:16px;font-weight:600;" id="planBudgetedTotal">₹0</div>
+            </div>
+            <div style="text-align:center;">
+              <div style="font-size:9px;color:var(--text-secondary);font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:3px;">Remaining</div>
+              <div style="font-size:16px;font-weight:600;" id="planRemainingTotal">₹0</div>
+            </div>
+          </div>
+          <div class="progress-track"><div class="progress-fill" id="planAllocationBar" style="width:0%"></div></div>
+          <p style="font-size:11px;color:var(--text-tertiary);margin-top:6px;font-weight:500;text-align:center;" id="planAllocationText">0% allocated</p>
+        </div>
+
+        <div id="planCategories"></div>
+        <div id="planGrid" style="display:none;">
+          <div class="card" style="padding:12px 14px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+              <div class="section-title" id="gridTitle" style="margin-bottom:0;">Calendar Year Budget</div>
+              <div class="segmented" style="margin-bottom:0;">
+                <button class="segmented-btn on" onclick="app.setGridMode('calendar', this)">Calendar</button>
+                <button class="segmented-btn" onclick="app.setGridMode('fy', this)">FY</button>
+              </div>
+            </div>
+            <div class="annual-table-wrapper">
+              <table class="annual-table">
+                <thead id="gridHead"><tr><th>Expense Type</th><th>Jan</th><th>Feb</th><th>Mar</th><th>Apr</th><th>May</th><th>Jun</th><th>Jul</th><th>Aug</th><th>Sep</th><th>Oct</th><th>Nov</th><th>Dec</th></tr></thead>
+                <tbody id="gridBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div id="planEvents" style="display:none;">
+          <div class="card" style="margin-bottom:8px;padding:0;">
+            <button class="slot" onclick="app.openEventModal()" style="width:100%;border:none;border-radius:var(--radius-lg);min-height:48px;" aria-label="Create new event">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+              New Event
+            </button>
+          </div>
+          <div id="eventsList"></div>
+        </div>
+
+        <!-- Budget actions (Copy/Clear) moved to Budget Modal overflow menu -->
+      </section>
+
+      <!-- History -->
+      <section id="historySection" style="display:none;">
+        <div class="home-title">History</div>
+        
+        <input type="text" class="search-field" id="historySearch" placeholder="Search..." oninput="app.debouncedSearchHistory()" style="padding:8px 10px;font-size:12px;margin-bottom:6px;" aria-label="Search transactions">
+        <div style="display:flex;gap:6px;margin-bottom:10px;">
+          <div class="field" style="flex:1;margin-bottom:0;">
+            <div class="inp picker-trigger" id="historyDateFromDisplay" onclick="app.openHistoryDatePicker('from')" style="padding:8px 10px;font-size:12px;" role="button" tabindex="0" aria-label="Filter from date">From Date</div>
+            <input type="hidden" id="historyDateFrom">
+          </div>
+          <div class="field" style="flex:1;margin-bottom:0;">
+            <div class="inp picker-trigger" id="historyDateToDisplay" onclick="app.openHistoryDatePicker('to')" style="padding:8px 10px;font-size:12px;" role="button" tabindex="0" aria-label="Filter to date">To Date</div>
+            <input type="hidden" id="historyDateTo">
+          </div>
+          <button class="chip" onclick="app.clearHistoryDateFilter()" style="align-self:flex-start;margin-top:2px;" aria-label="Clear date filters">Clear Dates</button>
+        </div>
+        <div class="collapse-toggle" onclick="app.toggleCollapse(this, 'historyQuickFilters')" style="padding:4px 0;font-size:10px;color:var(--text-tertiary);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;" role="button" tabindex="0" aria-expanded="false" aria-controls="historyQuickFilters">
+          <span>Quick Filters</span>
+        </div>
+        <div class="collapsible" id="historyQuickFilters" style="padding:0;">
+          <div style="display:flex;gap:6px;overflow-x:auto;flex-wrap:nowrap;padding:4px 0;scrollbar-width:none;-ms-overflow-style:none;">
+            <button class="chip" data-filter="today" onclick="app.filterHistoryQuick('today', this)">Today</button>
+            <button class="chip" data-filter="week" onclick="app.filterHistoryQuick('week', this)">This Week</button>
+            <button class="chip" data-filter="month" onclick="app.filterHistoryQuick('month', this)">This Month</button>
+            <button class="chip" data-filter="expense" onclick="app.filterHistoryQuick('expense', this)">Expense</button>
+            <button class="chip" data-filter="income" onclick="app.filterHistoryQuick('income', this)">Income</button>
+            <button class="chip" data-filter="transfer" onclick="app.filterHistoryQuick('transfer', this)">Transfer</button>
+          </div>
+          <div class="collapse-toggle" onclick="app.toggleCollapse(this, 'historyAdvancedFilters')" style="padding:2px 0;font-size:9px;color:var(--text-tertiary);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;margin-top:2px;" role="button" tabindex="0" aria-expanded="false" aria-controls="historyAdvancedFilters">
+            <span>More Filters</span>
+          </div>
+          <div class="collapsible" id="historyAdvancedFilters" style="padding:0;">
+            <div style="display:flex;gap:6px;align-items:center;margin-top:4px;overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none;-ms-overflow-style:none;">
+              <span style="font-size:10px;color:var(--text-tertiary);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-right:4px;flex-shrink:0;">Freq</span>
+              <div style="display:flex;gap:6px;flex-wrap:nowrap;white-space:nowrap;">
+                <button class="chip" data-filter="fixed" onclick="app.filterHistoryQuick('fixed', this)">Fixed</button>
+                <button class="chip" data-filter="variable" onclick="app.filterHistoryQuick('variable', this)">Variable</button>
+              </div>
+            </div>
+            <div style="display:flex;gap:6px;align-items:center;margin-top:4px;overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none;-ms-overflow-style:none;">
+              <span style="font-size:10px;color:var(--text-tertiary);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-right:4px;flex-shrink:0;">Mode</span>
+              <div style="display:flex;gap:6px;flex-wrap:nowrap;white-space:nowrap;">
+                <button class="chip" data-filter="cash" onclick="app.filterHistoryQuick('cash', this)">Cash</button>
+                <button class="chip" data-filter="credit" onclick="app.filterHistoryQuick('credit', this)">Credit</button>
+                <button class="chip" data-filter="debit" onclick="app.filterHistoryQuick('debit', this)">Debit</button>
+                <button class="chip" data-filter="wallet" onclick="app.filterHistoryQuick('wallet', this)">Wallet</button>
+              </div>
+            </div>
+            <div style="display:flex;gap:6px;align-items:center;margin-top:4px;overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none;-ms-overflow-style:none;">
+              <span style="font-size:10px;color:var(--text-tertiary);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-right:4px;flex-shrink:0;">Type</span>
+              <div style="display:flex;gap:6px;flex-wrap:nowrap;white-space:nowrap;">
+                <button class="chip" data-filter="type-essential" onclick="app.filterHistoryQuick('type-essential', this)">Essential</button>
+                <button class="chip" data-filter="type-non-essential" onclick="app.filterHistoryQuick('type-non-essential', this)">Non-Essential</button>
+                <button class="chip" data-filter="type-vacation" onclick="app.filterHistoryQuick('type-vacation', this)">Vacation</button>
+                <button class="chip" data-filter="type-earning" onclick="app.filterHistoryQuick('type-earning', this)">Earning</button>
+                <button class="chip" data-filter="type-saving" onclick="app.filterHistoryQuick('type-saving', this)">Saving</button>
+                <button class="chip" data-filter="type-investment" onclick="app.filterHistoryQuick('type-investment', this)">Investment</button>
+                <button class="chip" data-filter="type-transfer" onclick="app.filterHistoryQuick('type-transfer', this)">Transfer</button>
+              </div>
+            </div>
+            <div id="historyCategoryFilters" style="display:none;gap:6px;align-items:center;margin-top:4px;overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none;-ms-overflow-style:none;">
+              <span style="font-size:10px;color:var(--text-tertiary);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-right:4px;flex-shrink:0;">Category</span>
+              <div id="historyCategoryPills" style="display:flex;gap:6px;flex-wrap:nowrap;white-space:nowrap;"></div>
+            </div>
+          </div>
+        </div>
+        <div class="card" id="historyList" style="padding:0 14px;"></div>
+        <div id="historyLoadMore" style="display:none;text-align:center;padding:12px;">
+          <button class="btn" onclick="app.loadMoreHistory()" style="width:100%;" aria-label="Load more transactions">Load More</button>
+        </div>
+      </section>
+
+      <!-- Reports -->
+      <section id="reportsSection" style="display:none;">
+        <div class="home-title">Reports</div>
+        <div class="card" style="margin-bottom:10px;padding:14px;">
+          <div class="section-title">Date Range</div>
+          <div style="display:flex;gap:6px;margin-bottom:10px;">
+            <div class="field" style="flex:1;margin-bottom:0;">
+              <div class="inp picker-trigger" id="reportDateFromDisplay" onclick="app.openReportDatePicker('from')" style="padding:10px 12px;font-size:13px;" role="button" tabindex="0" aria-label="Report from date">From Date</div>
+              <input type="hidden" id="reportDateFrom">
+            </div>
+            <div class="field" style="flex:1;margin-bottom:0;">
+              <div class="inp picker-trigger" id="reportDateToDisplay" onclick="app.openReportDatePicker('to')" style="padding:10px 12px;font-size:13px;" role="button" tabindex="0" aria-label="Report to date">To Date</div>
+              <input type="hidden" id="reportDateTo">
+            </div>
+          </div>
+          <div class="chip-grid" style="margin-bottom:10px;">
+            <button class="chip" onclick="app.setReportRange('thisMonth')">This Month</button>
+            <button class="chip" onclick="app.setReportRange('lastMonth')">Last Month</button>
+            <button class="chip" onclick="app.setReportRange('thisYear')">This Year</button>
+            <button class="chip" onclick="app.setReportRange('lastYear')">Last Year</button>
+            <button class="chip" onclick="app.setReportRange('all')">All Time</button>
+          </div>
+          <div class="segmented" style="margin-bottom:0;">
+            <button class="segmented-btn on" onclick="app.setReportType('summary', this)">Summary</button>
+            <button class="segmented-btn" onclick="app.setReportType('category', this)">Categories</button>
+            <button class="segmented-btn" onclick="app.setReportType('monthly', this)">Monthly</button>
+            <button class="segmented-btn" onclick="app.setReportType('event', this)">Events</button>
+            <button class="segmented-btn" onclick="app.setReportType('source', this)">Source</button>
+          </div>
+        </div>
+        <div id="reportSummary"></div>
+        <div id="reportContent"></div>
+        <div class="card" style="margin-top:10px;padding:14px;">
+          <div class="section-title">Export</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-primary" style="flex:1;min-width:100px;" onclick="app.exportReportCSV()" aria-label="Export report as CSV">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              CSV
+            </button>
+            <button class="btn btn-primary" style="flex:1;min-width:100px;" onclick="app.exportReportJSON()" aria-label="Export report as JSON">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              JSON
+            </button>
+            <button class="btn" style="flex:1;min-width:100px;" onclick="app.printReport()" aria-label="Print report">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px;"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+              Print
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Track -->
+      <section id="trackSection" style="display:none;">
+        <div class="home-title">Product Lifecycle</div>
+        <div class="segmented" style="margin-bottom:12px;">
+          <button class="segmented-btn on" onclick="app.setTrackFilter('all', this)">All</button>
+          <button class="segmented-btn" onclick="app.setTrackFilter('Planned', this)">Planned</button>
+          <button class="segmented-btn" onclick="app.setTrackFilter('In-Progress', this)">In-Progress</button>
+          <button class="segmented-btn" onclick="app.setTrackFilter('Completed', this)">Completed</button>
+          <button class="segmented-btn" onclick="app.setTrackFilter('Overdue', this)">Overdue</button>
+        </div>
+        <div id="trackSummary" style="margin-bottom:12px;"></div>
+        <div id="trackList"></div>
+      </section>
+    </div>
+
+
+    <nav class="dock" id="dockNav" aria-label="Main navigation">
+      <button class="dock-btn on" onclick="app.setTab('home')" aria-label="Home tab" aria-controls="homeSection">
+        <span class="dock-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span>
+        <span>Home</span>
+      </button>
+      <button class="dock-btn" onclick="app.onAddTabClick()" aria-label="Add transaction tab" aria-controls="addSection">
+        <span class="dock-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg></span>
+        <span>Add</span>
+      </button>
+      <button class="dock-btn" onclick="app.setTab('plan')" aria-label="Budget plan tab" aria-controls="planSection">
+        <span class="dock-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></span>
+        <span>Plan</span>
+      </button>
+      <button class="dock-btn" onclick="app.setTab('track')" aria-label="Product lifecycle tab" aria-controls="trackSection">
+        <span class="dock-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></span>
+        <span>Lifecycle</span>
+      </button>
+      <button class="dock-btn" onclick="app.setTab('history')" aria-label="Transaction history tab" aria-controls="historySection">
+        <span class="dock-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span>
+        <span>History</span>
+      </button>
+      <button class="dock-btn" onclick="app.setTab('reports')" aria-label="Reports tab" aria-controls="reportsSection">
+        <span class="dock-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></span>
+        <span>Reports</span>
+      </button>
+    </nav>
+  </div>
+
+  <!-- Scroll Picker Modal -->
+  <div class="modal" id="pickerModal" style="z-index:1100;" role="dialog" aria-modal="true" aria-labelledby="pickerTitle">
+    <div class="modal-backdrop" onclick="app.closePicker()"></div>
+    <div class="modal-panel">
+      <div class="modal-header"><h3 id="pickerTitle">Select</h3><button class="modal-close" onclick="app.closePicker()" aria-label="Close picker"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></div>
+      <div class="modal-body" id="pickerBody" style="padding-bottom:20px;"></div>
+    </div>
+  </div>
+
+  <!-- Budget Modal -->
+  <div class="modal" id="budgetModal" role="dialog" aria-modal="true" aria-labelledby="budgetModalTitle">
+    <div class="modal-backdrop" onclick="app.closeBudgetModal()"></div>
+    <div class="modal-panel modal-budget">
+      <div class="modal-header" style="position:relative;">
+        <h3 id="budgetModalTitle">Set Budget</h3>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <button class="modal-close" onclick="app.toggleBudgetOverflow(event)" style="width:28px;height:28px;" aria-label="More budget actions" aria-haspopup="true" aria-expanded="false" id="budgetOverflowBtn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+          </button>
+          <button class="modal-close" onclick="app.closeBudgetModal()" aria-label="Close budget modal"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+        </div>
+        <div class="modal-overflow" id="budgetOverflowMenu" role="menu">
+          <button class="modal-overflow-item" onclick="app.openCopyBudgetModal();app.closeBudgetOverflow()" role="menuitem">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            <span>Copy from Another Month</span>
+          </button>
+          <button class="modal-overflow-item" onclick="app.openClearBudgetInline();app.closeBudgetOverflow()" role="menuitem">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+            <span>Clear Budget</span>
+          </button>
+        </div>
+      </div>
+      <div class="modal-body">
+        <div class="field"><label>Expense Type</label><input type="text" id="bmCategory" readonly style="box-shadow:none;"></div>
+        <div class="field"><label>Month</label><input type="month" id="bmMonth" style="box-shadow:none;"></div>
+        <div class="segmented" style="margin-bottom:12px;">
+          <button class="segmented-btn on" onclick="app.setBudgetMode('direct', this)">Direct Amount</button>
+          <button class="segmented-btn" onclick="app.setBudgetMode('items', this)">Itemize</button>
+        </div>
+        <div class="card" style="margin-bottom:12px;padding:10px;background:var(--bg);border:none;box-shadow:var(--shadow-neu-inset);">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+            <span style="font-size:9px;color:var(--text-secondary);font-weight:700;text-transform:uppercase;letter-spacing:0.08em;">Income</span>
+            <span style="font-size:12px;font-weight:600;" id="bmIncome">₹0</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+            <span style="font-size:9px;color:var(--text-secondary);font-weight:700;text-transform:uppercase;letter-spacing:0.08em;">Already Budgeted</span>
+            <span style="font-size:12px;font-weight:600;" id="bmAlreadyBudgeted">₹0</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:9px;color:var(--text-secondary);font-weight:700;text-transform:uppercase;letter-spacing:0.08em;">Remaining to Allocate</span>
+            <span style="font-size:13px;font-weight:700;" id="bmRemaining">₹0</span>
+          </div>
+        </div>
+        <div id="bmOverAllocatedWarning" style="display:none;margin-bottom:10px;padding:8px 10px;border-radius:var(--radius-md);background:var(--danger-soft);border:1px solid var(--danger);color:var(--danger);font-size:11px;font-weight:600;text-align:center;">
+          Cannot save: over-allocated by <span id="bmOverAllocatedAmount"></span>
+        </div>
+        <div id="bmDirect">
+          <div class="field"><label>Budget Amount</label><div class="input-wrapper"><span class="input-prefix">₹</span><input type="text" id="bmAmount" placeholder="0.00" oninput="app.updateBudgetAllocation()" style="box-shadow:none;" inputmode="decimal" aria-label="Budget amount" autocomplete="off"></div></div>
+        </div>
+        <div id="bmItems" style="display:none;">
+          <div class="field"><label>Budget Items</label><div id="bmItemList"></div><button type="button" class="btn" style="margin-top:6px;width:100%;font-size:12px;" onclick="app.addBudgetItem()">+ Add Item</button></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;">
+            <span style="font-size:11px;color:var(--text-secondary);font-weight:600;">Total from items</span>
+            <span style="font-size:13px;font-weight:700;" id="bmItemTotal">₹0</span>
+          </div>
+        </div>
+        <div id="budgetClearSection" style="display:none;margin-top:14px;border-top:1px solid var(--glass-border-dark);padding-top:12px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <span style="font-size:12px;font-weight:600;">Clear Budget</span>
+            <button class="modal-close" style="width:22px;height:22px;" onclick="document.getElementById('budgetClearSection').style.display='none'" aria-label="Close clear budget section">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+            </button>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+            <span style="font-size:11px;font-weight:600;color:var(--text-secondary);">Select Months</span>
+            <button class="chip" onclick="app.toggleAllClearBudgetMonths()" style="font-size:10px;padding:3px 8px;" id="clearBudgetToggleAllBtn">Select All</button>
+          </div>
+          <div id="clearBudgetMonthList" style="max-height:220px;overflow-y:auto;border:1px solid var(--glass-border-dark);border-radius:var(--radius-md);padding:6px;display:flex;flex-direction:column;gap:4px;"></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;">
+            <span style="font-size:10px;color:var(--text-tertiary);font-weight:500;" id="clearBudgetCountLabel">0 months selected</span>
+            <span style="font-size:10px;color:var(--text-tertiary);font-weight:500;" id="clearBudgetTotalLabel">₹0 total budget</span>
+          </div>
+          <button class="slot" onclick="app.confirmClearPlanBudget()" style="width:100%;margin-top:8px;color:var(--danger);" aria-label="Clear budget for selected months">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+            Clear Selected Budgets
+          </button>
+        </div>
+      </div>
+      <div class="modal-footer"><button class="btn" onclick="app.closeBudgetModal()">Cancel</button><button class="btn btn-primary" onclick="app.saveBudget()">Save Budget</button></div>
+    </div>
+  </div>
+
+  <!-- Confirm Modal -->
+  <div class="modal" id="confirmModal" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+    <div class="modal-backdrop" onclick="app.closeModal('confirmModal')"></div>
+    <div class="modal-panel modal-confirm" style="max-height:60vh;">
+      <div class="modal-header"><h3 id="confirmTitle">Confirm</h3></div>
+      <div class="modal-body" id="confirmBody" style="color:var(--text-secondary);font-size:14px;"></div>
+      <div class="modal-footer"><button class="btn" onclick="app.closeModal('confirmModal')">Cancel</button><button class="btn btn-danger" id="confirmBtn">Delete</button></div>
+    </div>
+  </div>
+
+  <!-- Backup & Restore Modal -->
+  <div class="modal" id="backupModal" role="dialog" aria-modal="true" aria-labelledby="backupModalTitle">
+    <div class="modal-backdrop" onclick="app.closeModal('backupModal')"></div>
+    <div class="modal-panel modal-backup">
+      <div class="modal-header"><h3 id="backupModalTitle">Back-up & Restore</h3><button class="modal-close" onclick="app.closeModal('backupModal')" aria-label="Close backup modal"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></div>
+      <div class="modal-body">
+        <div class="segmented" style="margin-bottom:12px; flex-wrap:wrap;">
+          <button class="segmented-btn on" onclick="app.setBackupTab('local', this)">Local Backups</button>
+          <button class="segmented-btn" onclick="app.setBackupTab('file', this)">From File</button>
+          <button class="segmented-btn" onclick="app.setBackupTab('selective', this)">Selective</button>
+          <button class="segmented-btn" onclick="app.setBackupTab('profiles', this)">Profiles</button>
+          <button class="segmented-btn" onclick="app.setBackupTab('archive', this)">Archive</button>
+          <button class="segmented-btn" onclick="app.setBackupTab('clear', this)">Clear Data</button>
+          <button class="segmented-btn" onclick="app.setBackupTab('settings', this)">Settings</button>
+        </div>
+        <div id="backupLocalTab">
+          <div style="display:flex;gap:6px;margin-bottom:12px;">
+            <button class="btn btn-primary" style="flex:1;" onclick="app.createBackup()">Create Backup</button>
+            <button class="btn" style="flex:1;" onclick="app.downloadCurrentData()">Download JSON</button>
+          </div>
+          <div class="section-title">Saved Backups</div>
+          <div id="backupList"></div>
+        </div>
+        <div id="backupFileTab" style="display:none;">
+          <div class="card" style="padding:14px;text-align:center;">
+            <p style="font-size:12px;color:var(--text-secondary);margin-bottom:10px;">Import a previously downloaded backup file to restore your data.</p>
+            <button class="btn btn-primary" onclick="document.getElementById('restoreFileInput').click()">Choose Backup File</button>
+          </div>
+        </div>
+        <div id="backupSelectiveTab" style="display:none;">
+          <div class="section-title" style="margin-top:2px;">Export Selection</div>
+          <div class="card" style="padding:14px;margin-bottom:12px;">
+            <p style="font-size:11px;color:var(--text-secondary);margin-bottom:10px;font-weight:500;">Back up specific sections, optionally limited to a day or date range. The date filter applies to transactions and lifecycle items only.</p>
+
+            <div class="field" style="margin-bottom:10px;">
+              <label>Date Filter</label>
+              <div class="segmented" style="margin-bottom:0;">
+                <button class="segmented-btn on" id="selDateModeAll" onclick="app.setSelectiveDateMode('all', this)">All Dates</button>
+                <button class="segmented-btn" id="selDateModeDay" onclick="app.setSelectiveDateMode('day', this)">Single Day</button>
+                <button class="segmented-btn" id="selDateModeRange" onclick="app.setSelectiveDateMode('range', this)">Range</button>
+              </div>
+            </div>
+
+            <div id="selDayRow" class="field" style="margin-bottom:10px;display:none;">
+              <label>Day</label>
+              <div class="inp picker-trigger" id="selDayDisplay" onclick="app.openSelectiveDatePicker('day')" style="padding:10px 12px;font-size:13px;" role="button" tabindex="0" aria-haspopup="listbox">Select date...</div>
+              <input type="hidden" id="selDayValue">
+            </div>
+
+            <div id="selRangeRow" style="display:none;">
+              <div style="display:flex;gap:8px;margin-bottom:10px;">
+                <div class="field" style="flex:1;margin-bottom:0;">
+                  <label>From</label>
+                  <div class="inp picker-trigger" id="selFromDisplay" onclick="app.openSelectiveDatePicker('from')" style="padding:10px 12px;font-size:13px;" role="button" tabindex="0" aria-haspopup="listbox">Select date...</div>
+                  <input type="hidden" id="selFromValue">
+                </div>
+                <div class="field" style="flex:1;margin-bottom:0;">
+                  <label>To</label>
+                  <div class="inp picker-trigger" id="selToDisplay" onclick="app.openSelectiveDatePicker('to')" style="padding:10px 12px;font-size:13px;" role="button" tabindex="0" aria-haspopup="listbox">Select date...</div>
+                  <input type="hidden" id="selToValue">
+                </div>
+              </div>
+            </div>
+
+            <div class="field" style="margin-bottom:6px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                <label style="margin-bottom:0;">Sections</label>
+                <button class="chip" onclick="app.toggleAllSelectiveSections()" style="font-size:10px;padding:3px 8px;" id="selSectionsToggleAllBtn">Select All</button>
+              </div>
+              <div id="selSectionList" style="border:1px solid var(--glass-border-dark);border-radius:var(--radius-md);padding:8px;display:flex;flex-direction:column;gap:2px;">
+                <label class="copy-tx-row" style="cursor:pointer;"><input type="checkbox" class="sel-section-cb" style="width:15px;height:15px;accent-color:var(--accent);" value="transactions" checked onchange="app.updateSelectiveStats()"> <span>Transactions</span></label>
+                <label class="copy-tx-row" style="cursor:pointer;"><input type="checkbox" class="sel-section-cb" style="width:15px;height:15px;accent-color:var(--accent);" value="lifecycle" onchange="app.updateSelectiveStats()"> <span>Product Lifecycle (tracked items only)</span></label>
+                <label class="copy-tx-row" style="cursor:pointer;"><input type="checkbox" class="sel-section-cb" style="width:15px;height:15px;accent-color:var(--accent);" value="plan" onchange="app.updateSelectiveStats()"> <span>Plan — Budgets</span></label>
+                <label class="copy-tx-row" style="cursor:pointer;"><input type="checkbox" class="sel-section-cb" style="width:15px;height:15px;accent-color:var(--accent);" value="recurringBudgets" onchange="app.updateSelectiveStats()"> <span>Plan — Recurring Budgets</span></label>
+                <label class="copy-tx-row" style="cursor:pointer;"><input type="checkbox" class="sel-section-cb" style="width:15px;height:15px;accent-color:var(--accent);" value="recurring" onchange="app.updateSelectiveStats()"> <span>Recurring Templates</span></label>
+                <label class="copy-tx-row" style="cursor:pointer;"><input type="checkbox" class="sel-section-cb" style="width:15px;height:15px;accent-color:var(--accent);" value="goals" onchange="app.updateSelectiveStats()"> <span>Goals</span></label>
+                <label class="copy-tx-row" style="cursor:pointer;"><input type="checkbox" class="sel-section-cb" style="width:15px;height:15px;accent-color:var(--accent);" value="events" onchange="app.updateSelectiveStats()"> <span>Events</span></label>
+                <label class="copy-tx-row" style="cursor:pointer;"><input type="checkbox" class="sel-section-cb" style="width:15px;height:15px;accent-color:var(--accent);" value="accounts" onchange="app.updateSelectiveStats()"> <span>Accounts</span></label>
+                <label class="copy-tx-row" style="cursor:pointer;"><input type="checkbox" class="sel-section-cb" style="width:15px;height:15px;accent-color:var(--accent);" value="settings" onchange="app.updateSelectiveStats()"> <span>Settings (types &amp; categories)</span></label>
+              </div>
+            </div>
+            <div id="selStats" style="font-size:11px;color:var(--text-tertiary);margin-bottom:10px;font-weight:500;"></div>
+            <button class="btn btn-primary" style="width:100%;" onclick="app.exportSelective()">Download Selective Backup</button>
+          </div>
+
+          <div class="section-title">Import Selection</div>
+          <div class="card" style="padding:14px;">
+            <p style="font-size:11px;color:var(--text-secondary);margin-bottom:10px;font-weight:500;">Import a selective (or full) backup file. Choose how it combines with your existing data.</p>
+            <div class="field" style="margin-bottom:10px;">
+              <label>Import Mode</label>
+              <div class="segmented" style="margin-bottom:0;">
+                <button class="segmented-btn on" id="selImportModeMerge" onclick="app.setSelectiveImportMode('merge', this)">Merge (Add)</button>
+                <button class="segmented-btn" id="selImportModeReplace" onclick="app.setSelectiveImportMode('replace', this)">Replace</button>
+              </div>
+            </div>
+            <p style="font-size:10px;color:var(--text-tertiary);margin-bottom:10px;font-weight:500;" id="selImportModeHint">Merge adds the imported records on top of your existing data. Duplicate transaction IDs are skipped.</p>
+            <button class="btn btn-primary" style="width:100%;" onclick="document.getElementById('selectiveImportInput').click()">Choose Backup File</button>
+          </div>
+        </div>
+        <div id="backupProfilesTab" style="display:none;">
+          <div class="section-title" style="margin-top:2px;">Export Profile</div>
+          <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;">
+            <button class="btn btn-primary" style="flex:1;min-width:100px;" onclick="app.exportProfile('self')">Export Self</button>
+            <button class="btn btn-primary" style="flex:1;min-width:100px;" onclick="app.exportProfile('wife')">Export Joint W/ Spouse</button>
+            <button class="btn" style="flex:1;min-width:100px;" onclick="app.exportAllProfiles()">Export All</button>
+          </div>
+          <div class="section-title">Import Profile</div>
+          <div class="card" style="padding:14px;text-align:center;">
+            <p style="font-size:12px;color:var(--text-secondary);margin-bottom:10px;">Import a single profile (Self or Wife) or a full backup containing both profiles.</p>
+            <button class="btn btn-primary" onclick="document.getElementById('importProfileInput').click()">Choose Import File</button>
+          </div>
+        </div>
+        <div id="backupArchiveTab" style="display:none;">
+          <div class="section-title" style="margin-top:2px;">Yearly Archive & Purge</div>
+          <div class="card" style="padding:14px;margin-bottom:12px;">
+            <p style="font-size:12px;color:var(--text-secondary);margin-bottom:10px;">Archive transactions and budgets from a completed year to a downloadable file, then purge them from local storage to free up space.</p>
+            <div class="field" style="margin-bottom:10px;">
+              <label>Select Year to Archive</label>
+              <div class="inp picker-trigger" id="archiveYearDisplay" onclick="app.openArchiveYearPicker()" style="padding:10px 12px;font-size:13px;" role="button" tabindex="0" aria-haspopup="listbox">Select year...</div>
+              <input type="hidden" id="archiveYearValue">
+            </div>
+            <div id="archiveStats" style="font-size:12px;color:var(--text-secondary);margin-bottom:10px;"></div>
+            <button class="btn btn-primary" style="width:100%;" onclick="app.archiveAndPurgeYear()">Download Archive & Purge</button>
+          </div>
+          <div class="section-title">Archived Files History</div>
+          <div id="archiveList" style="font-size:12px;color:var(--text-secondary);">No archives yet.</div>
+        </div>
+        <div id="backupSettingsTab" style="display:none;">
+          <div class="section-title" style="margin-top:2px;">Dashboard Settings</div>
+          <div class="card" style="padding:14px;margin-bottom:12px;">
+            <div class="recurring-row" onclick="app.toggleAutoResetMonth()" style="border-top:none;margin-top:0;padding-top:0;cursor:pointer;" role="button" tabindex="0" aria-label="Toggle auto month reset">
+              <span class="recurring-label">Auto-reset on new month</span>
+              <div class="toggle" id="autoResetMonthToggle" aria-hidden="true"><div class="toggle-knob"></div></div>
+            </div>
+            <input type="hidden" id="autoResetMonth" value="true">
+            <p style="font-size:10px;color:var(--text-tertiary);margin-top:8px;font-weight:500;">Automatically switches the dashboard to the current calendar month when detected. Recurring transactions and budgets are generated for the new month.</p>
+          </div>
+        </div>
+
+        <div id="backupClearTab" style="display:none;">
+          <div class="section-title" style="margin-top:2px;">Clear Expenses</div>
+          <div style="margin-bottom:10px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+              <span style="font-size:11px;font-weight:600;color:var(--text-secondary);">Select Months</span>
+              <button class="chip" onclick="app.toggleAllBackupClearExpenseMonths()" style="font-size:10px;padding:3px 8px;" id="backupClearExpenseToggleAllBtn">Select All</button>
+            </div>
+            <div id="backupClearExpenseMonthList" style="max-height:220px;overflow-y:auto;border:1px solid var(--glass-border-dark);border-radius:var(--radius-md);padding:6px;display:flex;flex-direction:column;gap:4px;"></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;">
+              <span style="font-size:10px;color:var(--text-tertiary);font-weight:500;" id="backupClearExpenseCountLabel">0 months selected</span>
+              <span style="font-size:10px;color:var(--text-tertiary);font-weight:500;" id="backupClearExpenseTxLabel">0 transactions</span>
+            </div>
+          </div>
+          <button class="btn btn-danger" style="width:100%;margin-bottom:16px;" onclick="app.confirmBackupClearExpenses()">Clear Expenses for Selected Month(s)</button>
+          <p style="font-size:10px;color:var(--text-tertiary);margin-bottom:16px;font-weight:500;">This will permanently delete all transactions for the selected months. Budgets are preserved.</p>
+
+          <div class="section-title">Clear Budget</div>
+          <div style="margin-bottom:10px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+              <span style="font-size:11px;font-weight:600;color:var(--text-secondary);">Select Months</span>
+              <button class="chip" onclick="app.toggleAllBackupClearBudgetMonths()" style="font-size:10px;padding:3px 8px;" id="backupClearBudgetToggleAllBtn">Select All</button>
+            </div>
+            <div id="backupClearBudgetMonthList" style="max-height:220px;overflow-y:auto;border:1px solid var(--glass-border-dark);border-radius:var(--radius-md);padding:6px;display:flex;flex-direction:column;gap:4px;"></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;">
+              <span style="font-size:10px;color:var(--text-tertiary);font-weight:500;" id="backupClearBudgetCountLabel">0 months selected</span>
+              <span style="font-size:10px;color:var(--text-tertiary);font-weight:500;" id="backupClearBudgetTotalLabel">₹0 total budget</span>
+            </div>
+          </div>
+          <button class="btn btn-danger" style="width:100%;" onclick="app.confirmBackupClearBudget()">Clear Budget for Selected Month(s)</button>
+          <p style="font-size:10px;color:var(--text-tertiary);margin-top:8px;font-weight:500;">This will permanently delete all budget data for the selected months. Transactions are preserved.</p>
+        </div>
+      </div>
+      <div class="modal-footer"><button class="btn" onclick="app.closeModal('backupModal')">Close</button></div>
+    </div>
+  </div>
+
+  <!-- Copy Expenses Modal -->
+  <div class="modal" id="copyModal" role="dialog" aria-modal="true" aria-label="Copy expenses from another month">
+    <div class="modal-backdrop" onclick="app.closeModal('copyModal')"></div>
+    <div class="modal-panel modal-copy">
+      <div class="modal-header"><h3>Copy Expenses</h3><button class="modal-close" onclick="app.closeModal('copyModal')" aria-label="Close copy modal"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></div>
+      <div class="modal-body">
+        <div class="field">
+          <label>Source Month</label>
+          <div class="inp picker-trigger" id="copyMonthDisplay" onclick="app.openCopyMonthPickerList()" style="padding:10px 12px;font-size:13px;" role="button" tabindex="0" aria-label="Select source month">Select Month</div>
+          <input type="hidden" id="copyMonthValue">
+        </div>
+        <div class="section-title" style="margin-top:6px;">Filters</div>
+        <div class="copy-filter-row">
+          <input type="text" class="inp" id="copyFilterItem" placeholder="Filter by item..." oninput="app.debouncedRenderCopyTransactions()" style="box-shadow:none;" aria-label="Filter by item name">
+          <input type="text" class="inp" id="copyFilterYear" placeholder="Year (e.g. 2026)" oninput="app.debouncedRenderCopyTransactions()" style="box-shadow:none;" aria-label="Filter by year">
+          <input type="text" class="inp" id="copyFilterMonth" placeholder="Month (e.g. Jan)" oninput="app.debouncedRenderCopyTransactions()" style="box-shadow:none;" aria-label="Filter by month name">
+        </div>
+        <div id="copyTxList" style="max-height:300px;overflow-y:auto;"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="app.closeModal('copyModal')">Cancel</button>
+        <button class="btn btn-primary" onclick="app.copySelectedExpenses()">Copy Selected</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Copy Budget Modal -->
+  <div class="modal" id="copyBudgetModal" role="dialog" aria-modal="true" aria-label="Copy budget from another month">
+    <div class="modal-backdrop" onclick="app.closeModal('copyBudgetModal')"></div>
+    <div class="modal-panel modal-copy">
+      <div class="modal-header"><h3>Copy Budget</h3><button class="modal-close" onclick="app.closeModal('copyBudgetModal')" aria-label="Close copy budget modal"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></div>
+      <div class="modal-body">
+        <div class="field" style="margin-bottom:10px;">
+          <label>Source Month</label>
+          <div class="inp picker-trigger" id="copyBudgetSourceDisplay" onclick="app.openCopyBudgetSourcePicker()" style="padding:10px 12px;font-size:13px;" role="button" tabindex="0" aria-label="Select source month for budget copy">Select Month</div>
+          <input type="hidden" id="copyBudgetSourceValue">
+        </div>
+        <div class="segmented" style="margin-bottom:12px;">
+          <button class="segmented-btn on" onclick="app.setCopyTargetMode('single', this)">Single Month</button>
+          <button class="segmented-btn" onclick="app.setCopyTargetMode('multi', this)">Multi Month</button>
+        </div>
+        <div id="copyTargetSingle">
+          <div class="field" style="margin-bottom:10px;">
+            <label>Target Month</label>
+            <div class="inp picker-trigger" id="copyBudgetTargetDisplay" onclick="app.openCopyBudgetTargetPicker()" style="padding:10px 12px;font-size:13px;" role="button" tabindex="0" aria-label="Select target month for budget copy">Select Month</div>
+            <input type="hidden" id="copyBudgetTargetValue">
+          </div>
+        </div>
+        <div id="copyTargetMulti" style="display:none;">
+          <div class="section-title" style="margin-top:2px;">Select Target Months</div>
+          <div id="copyMultiMonthList" style="max-height:200px;overflow-y:auto;margin-bottom:10px;"></div>
+        </div>
+        <div class="section-title" style="margin-top:6px;">Item Filter</div>
+        <div class="segmented" style="margin-bottom:12px;">
+          <button class="segmented-btn on" onclick="app.setCopyBudgetFilter('all', this)">All</button>
+          <button class="segmented-btn" onclick="app.setCopyBudgetFilter('fixed', this)">Fixed Only</button>
+          <button class="segmented-btn" onclick="app.setCopyBudgetFilter('onetime', this)">One-time Only</button>
+        </div>
+        <div class="section-title" style="margin-top:6px;">Select Expense Types to Copy</div>
+        <div id="copyBudgetTypeList" style="max-height:260px;overflow-y:auto;"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="app.closeModal('copyBudgetModal')">Cancel</button>
+        <button class="btn btn-primary" onclick="app.copySelectedBudgets()">Copy Selected</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Event Modal -->
+  <div class="modal" id="eventModal" style="z-index:1050;" role="dialog" aria-modal="true" aria-labelledby="eventModalTitle">
+    <div class="modal-backdrop" onclick="app.closeModal('eventModal')"></div>
+    <div class="modal-panel modal-event">
+      <div class="modal-header"><h3 id="eventModalTitle">New Event</h3><button class="modal-close" onclick="app.closeModal('eventModal')" aria-label="Close event modal"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></div>
+      <div class="modal-body">
+        <input type="hidden" id="eventId">
+        <div class="field"><label>Event Name *</label><input type="text" id="eventName" placeholder="e.g. Goa Trip" required style="box-shadow:none;" aria-label="Event name"></div>
+        <div class="field-row">
+          <div class="field"><label>Start Date</label><div class="inp picker-trigger" id="eventStartDisplay" onclick="app.openEventDatePicker('start')" style="padding:10px 12px;font-size:13px;" role="button" tabindex="0" aria-label="Select event start date">Select Date</div><input type="hidden" id="eventStartDate"></div>
+          <div class="field"><label>End Date</label><div class="inp picker-trigger" id="eventEndDisplay" onclick="app.openEventDatePicker('end')" style="padding:10px 12px;font-size:13px;" role="button" tabindex="0" aria-label="Select event end date">Select Date</div><input type="hidden" id="eventEndDate"></div>
+        </div>
+        <div class="field"><label>Budget Amount</label><div class="input-wrapper"><span class="input-prefix">₹</span><input type="text" id="eventBudget" placeholder="0.00" style="box-shadow:none;" inputmode="decimal" aria-label="Event budget amount" autocomplete="off"></div></div>
+        <div class="field">
+          <label>Tracked Expense Types</label>
+          <div class="chip-grid" id="eventTypeChips"></div>
+          <input type="hidden" id="eventTypes" value="Earning,Saving,Investment,Transfer,Essential,Non-essential,Vacation">
+        </div>
+        <div class="field"><label>Notes</label><textarea id="eventNotes" placeholder="Any notes..." style="box-shadow:none;" aria-label="Event notes"></textarea></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-danger" id="eventDeleteBtn" style="margin-right:auto;display:none;" onclick="app.deleteEvent()">Delete</button>
+        <button class="btn" onclick="app.closeModal('eventModal')">Cancel</button>
+        <button class="btn btn-primary" onclick="app.saveEvent()">Save Event</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Account Modal -->
+  <div class="modal" id="accountModal" style="z-index:1050;" role="dialog" aria-modal="true" aria-label="Account settings">
+    <div class="modal-backdrop" onclick="app.closeModal('accountModal')"></div>
+    <div class="modal-panel modal-account">
+      <div class="modal-header"><h3>Account Settings</h3><button class="modal-close" onclick="app.closeModal('accountModal')" aria-label="Close account modal"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></div>
+      <div class="modal-body">
+        <div id="accountList"></div>
+      </div>
+      <div class="modal-footer"><button class="btn" onclick="app.closeModal('accountModal')">Close</button><button class="btn btn-primary" onclick="app.saveAccounts()">Save</button></div>
+    </div>
+  </div>
+
+  <!-- Goal Modal -->
+  <div class="modal" id="goalModal" style="z-index:1050;" role="dialog" aria-modal="true" aria-labelledby="goalModalTitle">
+    <div class="modal-backdrop" onclick="app.closeModal('goalModal')"></div>
+    <div class="modal-panel modal-goal">
+      <div class="modal-header"><h3 id="goalModalTitle">New Goal</h3><button class="modal-close" onclick="app.closeModal('goalModal')" aria-label="Close goal modal"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></div>
+      <div class="modal-body">
+        <input type="hidden" id="goalId">
+        <div class="field"><label>Goal Name *</label><input type="text" id="goalName" placeholder="e.g. Emergency Fund" required style="box-shadow:none;" aria-label="Goal name"></div>
+        <div class="field"><label>Target Amount *</label><div class="input-wrapper"><span class="input-prefix">₹</span><input type="text" id="goalTarget" placeholder="0.00" required style="box-shadow:none;" inputmode="decimal" aria-label="Goal target amount" autocomplete="off"></div></div>
+        <div class="field"><label>Current Amount</label><div class="input-wrapper"><span class="input-prefix">₹</span><input type="text" id="goalCurrent" placeholder="0.00" style="box-shadow:none;" inputmode="decimal" aria-label="Goal current amount" autocomplete="off"></div></div>
+        <div class="field"><label>Deadline</label><div class="inp picker-trigger" id="goalDeadlineDisplay" onclick="app.openGoalDatePicker()" style="padding:10px 12px;font-size:13px;" role="button" tabindex="0" aria-label="Select goal deadline">Select Date</div><input type="hidden" id="goalDeadline"></div>
+        <div class="field">
+          <label>Linked Expense Type (Optional)</label>
+          <div class="inp picker-trigger" id="goalTypeDisplay" onclick="app.openGoalTypePicker()" style="padding:10px 12px;font-size:13px;" role="button" tabindex="0" aria-label="Select linked expense type">None</div>
+          <input type="hidden" id="goalType" value="">
+        </div>
+        <div class="field"><label>Notes</label><textarea id="goalNotes" placeholder="Any notes..." style="box-shadow:none;" aria-label="Goal notes"></textarea></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-danger" id="goalDeleteBtn" style="margin-right:auto;display:none;" onclick="app.deleteGoal()">Delete</button>
+        <button class="btn" onclick="app.closeModal('goalModal')">Cancel</button>
+        <button class="btn btn-primary" onclick="app.saveGoal()">Save Goal</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Type Manager Modal -->
+  <div class="modal" id="typeModal" style="z-index:1050;" role="dialog" aria-modal="true" aria-labelledby="typeModalTitle">
+    <div class="modal-backdrop" onclick="app.closeModal('typeModal')"></div>
+    <div class="modal-panel modal-type">
+      <div class="modal-header"><h3 id="typeModalTitle">Manage Types & Categories</h3><button class="modal-close" onclick="app.closeModal('typeModal')" aria-label="Close type modal"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></div>
+      <div class="modal-body">
+        <div class="section-title" style="margin-top:2px;">Expense Types</div>
+        <div id="typeList" style="margin-bottom:12px;"></div>
+        <div class="field-row" style="margin-bottom:12px;">
+          <div class="field" style="flex:1;margin-bottom:0;">
+            <input type="text" id="newTypeName" class="inp" placeholder="New expense type name..." style="box-shadow:none;" autocomplete="off">
+          </div>
+          <button class="btn btn-primary" onclick="app.addExpenseType()" style="flex-shrink:0;">Add Type</button>
+        </div>
+        <div class="section-title">Categories for Selected Type</div>
+        <div class="field" style="margin-bottom:8px;">
+          <div class="inp picker-trigger" id="typeManagerTypeDisplay" onclick="app.openTypeManagerTypePicker()" style="padding:10px 12px;font-size:13px;" role="button" tabindex="0">Select Type</div>
+          <input type="hidden" id="typeManagerType" value="">
+        </div>
+        <div id="categoryList" style="margin-bottom:12px;"></div>
+        <div class="field-row">
+          <div class="field" style="flex:1;margin-bottom:0;">
+            <input type="text" id="newCategoryName" class="inp" placeholder="New category name..." style="box-shadow:none;" autocomplete="off">
+          </div>
+          <button class="btn btn-primary" onclick="app.addCategory()" style="flex-shrink:0;">Add Category</button>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="app.closeModal('typeModal')">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Profile Manager Modal -->
+  <div class="modal" id="profileModal" style="z-index:1050;" role="dialog" aria-modal="true" aria-labelledby="profileModalTitle">
+    <div class="modal-backdrop" onclick="app.closeModal('profileModal')"></div>
+    <div class="modal-panel modal-profile">
+      <div class="modal-header"><h3 id="profileModalTitle">Manage Profiles</h3><button class="modal-close" onclick="app.closeModal('profileModal')" aria-label="Close profile modal"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></div>
+      <div class="modal-body">
+        <div class="section-title" style="margin-top:2px;">Existing Profiles</div>
+        <div id="profileList" style="margin-bottom:12px;"></div>
+        <div class="field-row">
+          <div class="field" style="flex:1;margin-bottom:0;">
+            <input type="text" id="newProfileName" class="inp" placeholder="New profile ID (e.g. business)..." style="box-shadow:none;" autocomplete="off">
+          </div>
+          <button class="btn btn-primary" onclick="app.addProfile()" style="flex-shrink:0;">Add Profile</button>
+        </div>
+        <p style="font-size:10px;color:var(--text-tertiary);margin-top:8px;font-weight:500;">Profile ID should be lowercase with no spaces. It will appear in the profile switcher.</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="app.closeModal('profileModal')">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <input type="file" id="restoreFileInput" accept=".json" style="display:none" onchange="app.restoreFromFile(this)">
+  <input type="file" id="importProfileInput" accept=".json" style="display:none" onchange="app.importProfileFile(this)">
+  <input type="file" id="selectiveImportInput" accept=".json" style="display:none" onchange="app.importSelectiveFile(this)">
+
+  <script src="app.js"></script>
+
+
+  </body>
+</html>
