@@ -960,6 +960,32 @@
         toggleEl.setAttribute('aria-expanded', String(!isOpen));
       }
 
+      // Short, plain-language descriptions for each card's info ("i") button.
+      showCardInfo(key) {
+        const info = {
+          // Home
+          monthlyBudget: ['Monthly Budget', 'How much of this month’s total budget you’ve used so far. The bar and percentage compare your spending against the budgets you set in the Plan tab.'],
+          spent: ['Spent', 'Your total spending for the selected month, across all expense types (excluding transfers and savings movements).'],
+          budget: ['Budget', 'The total budget you planned for this month, with how much is still remaining after what you’ve spent.'],
+          cashflow: ['Cash Flow Trend', 'A 6-month view of money in versus money out, so you can see whether your balance is trending up or down over time.'],
+          byType: ['By Expense Type', 'This month’s spending grouped by expense type (Essential, Non-essential, and so on), so you can see where the money goes at a glance.'],
+          tracked: ['Tracked Expenses', 'Items you flagged with Product Lifecycle tracking — things with a start date, duration, and status. Useful for subscriptions, warranties, or anything with a lifespan.'],
+          events: ['Active Events', 'Spending events currently running (like a trip or a wedding). Transactions tagged to an event are grouped so you can see the total spend per event.'],
+          goals: ['Goals', 'Your savings goals and progress toward each target. Tap Manage to add or edit goals.'],
+          accounts: ['Account Balances', 'The balances you’ve recorded for each account. These feed the net-worth view. Tap Edit to update them.'],
+          // Reports
+          reportFilters: ['Report Filters', 'Choose a date range (or a quick preset) and a breakdown type — Summary, Categories, Monthly, Events, or Source. Everything below updates to match.'],
+          export: ['Export', 'Download the current report as a CSV or JSON file, or open a printable view. The export reflects the date range and breakdown you’ve selected above.']
+        };
+        const entry = info[key];
+        if (!entry) return;
+        const titleEl = document.getElementById('cardInfoTitle');
+        const bodyEl = document.getElementById('cardInfoBody');
+        if (titleEl) titleEl.textContent = entry[0];
+        if (bodyEl) bodyEl.textContent = entry[1];
+        this.openModal('cardInfoModal');
+      }
+
       handleTypeChange() {
         const type = document.getElementById('txType').value;
         const txCategory = document.getElementById('txCategory');

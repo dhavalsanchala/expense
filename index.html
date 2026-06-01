@@ -80,7 +80,7 @@
       <section id="homeSection">
         <div class="card progress-card">
           <div class="progress-header">
-            <div><div class="progress-label">Monthly Budget</div></div>
+            <div><div class="progress-label">Monthly Budget <button class="info-btn" onclick="app.showCardInfo('monthlyBudget')" aria-label="About Monthly Budget">i</button></div></div>
             <div class="progress-value" id="dashProgressValue">0%</div>
           </div>
           <div class="progress-track"><div class="progress-fill" id="dashProgressFill" style="width:0%"></div></div>
@@ -89,12 +89,12 @@
 
         <div class="summary-grid">
           <div class="summary-card">
-            <div class="summary-label">Spent</div>
+            <div class="summary-label">Spent <button class="info-btn" onclick="app.showCardInfo('spent')" aria-label="About Spent">i</button></div>
             <div class="summary-value" id="dashSpent">0</div>
             <div class="summary-sub" id="dashSpentSub">This month</div>
           </div>
           <div class="summary-card" id="dashBudgetCard">
-            <div class="summary-label">Budget</div>
+            <div class="summary-label">Budget <button class="info-btn" onclick="app.showCardInfo('budget')" aria-label="About Budget">i</button></div>
             <div class="summary-value" id="dashBudget">0</div>
             <div class="summary-sub" id="dashBudgetSub">Remaining 0</div>
           </div>
@@ -102,7 +102,7 @@
 
         <div class="card" style="margin-bottom:10px;">
           <div class="cat-header">
-            <div class="cat-title">Cash Flow Trend</div>
+            <div class="cat-title">Cash Flow Trend <button class="info-btn" onclick="event.stopPropagation();app.showCardInfo('cashflow')" aria-label="About Cash Flow Trend">i</button></div>
             <span class="cat-badge">6 Months</span>
           </div>
           <div id="dashNetWorth"></div>
@@ -110,7 +110,7 @@
 
         <div class="card" style="margin-bottom:10px;">
           <div class="cat-header">
-            <div class="cat-title">By Expense Type</div>
+            <div class="cat-title">By Expense Type <button class="info-btn" onclick="event.stopPropagation();app.showCardInfo('byType')" aria-label="About By Expense Type">i</button></div>
             <span class="cat-badge" id="dashCategoryCount">0</span>
           </div>
           <div id="dashCategories"></div>
@@ -118,7 +118,7 @@
 
         <div class="card" style="margin-bottom:10px;">
           <div class="cat-header">
-            <div class="cat-title">Tracked Expenses</div>
+            <div class="cat-title">Tracked Expenses <button class="info-btn" onclick="event.stopPropagation();app.showCardInfo('tracked')" aria-label="About Tracked Expenses">i</button></div>
             <span class="cat-badge" id="dashTrackedCount">0</span>
           </div>
           <div id="dashTracked"></div>
@@ -126,7 +126,7 @@
 
         <div class="card" style="margin-top:10px;">
           <div class="cat-header">
-            <div class="cat-title">Active Events</div>
+            <div class="cat-title">Active Events <button class="info-btn" onclick="event.stopPropagation();app.showCardInfo('events')" aria-label="About Active Events">i</button></div>
             <span class="cat-badge" id="dashEventCount">0</span>
           </div>
           <div id="dashEvents"></div>
@@ -135,7 +135,7 @@
         <div class="card" style="margin-top:10px;">
           <div class="collapse-toggle" onclick="app.toggleCollapse(this, 'dashGoalsWrap')" style="padding:0;" role="button" tabindex="0" aria-expanded="false" aria-controls="dashGoalsWrap">
             <div class="cat-header" style="margin-bottom:0;">
-              <div class="cat-title">Goals</div>
+              <div class="cat-title">Goals <button class="info-btn" onclick="event.stopPropagation();app.showCardInfo('goals')" aria-label="About Goals">i</button></div>
               <button class="chip" onclick="event.stopPropagation();app.openGoalModal()">Manage</button>
             </div>
           </div>
@@ -147,7 +147,7 @@
         <div class="card" style="margin-top:10px;">
           <div class="collapse-toggle" onclick="app.toggleCollapse(this, 'dashAccountsWrap')" style="padding:0;" role="button" tabindex="0" aria-expanded="false" aria-controls="dashAccountsWrap">
             <div class="cat-header" style="margin-bottom:0;">
-              <div class="cat-title">Account Balances</div>
+              <div class="cat-title">Account Balances <button class="info-btn" onclick="event.stopPropagation();app.showCardInfo('accounts')" aria-label="About Account Balances">i</button></div>
               <button class="chip" onclick="event.stopPropagation();app.openAccountModal()">Edit</button>
             </div>
           </div>
@@ -490,7 +490,7 @@
       <section id="reportsSection" style="display:none;">
         <div class="home-title">Reports</div>
         <div class="card" style="margin-bottom:10px;padding:14px;">
-          <div class="section-title">Date Range</div>
+          <div class="section-title">Date Range <button class="info-btn" onclick="app.showCardInfo('reportFilters')" aria-label="About report filters">i</button></div>
           <div style="display:flex;gap:6px;margin-bottom:10px;">
             <div class="field" style="flex:1;margin-bottom:0;">
               <div class="inp picker-trigger" id="reportDateFromDisplay" onclick="app.openReportDatePicker('from')" style="padding:10px 12px;font-size:13px;" role="button" tabindex="0" aria-label="Report from date">From Date</div>
@@ -519,7 +519,7 @@
         <div id="reportSummary"></div>
         <div id="reportContent"></div>
         <div class="card" style="margin-top:10px;padding:14px;">
-          <div class="section-title">Export</div>
+          <div class="section-title">Export <button class="info-btn" onclick="app.showCardInfo('export')" aria-label="About Export">i</button></div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;">
             <button class="btn btn-primary" style="flex:1;min-width:100px;" onclick="app.exportReportCSV()" aria-label="Export report as CSV">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -675,6 +675,15 @@
       <div class="modal-header"><h3 id="confirmTitle">Confirm</h3></div>
       <div class="modal-body" id="confirmBody" style="color:var(--text-secondary);font-size:14px;"></div>
       <div class="modal-footer"><button class="btn" onclick="app.closeModal('confirmModal')">Cancel</button><button class="btn btn-danger" id="confirmBtn">Delete</button></div>
+    </div>
+  </div>
+
+  <div class="modal" id="cardInfoModal" role="dialog" aria-modal="true" aria-labelledby="cardInfoTitle">
+    <div class="modal-backdrop" onclick="app.closeModal('cardInfoModal')"></div>
+    <div class="modal-panel modal-confirm" style="max-height:60vh;">
+      <div class="modal-header"><h3 id="cardInfoTitle">About</h3></div>
+      <div class="modal-body" id="cardInfoBody" style="color:var(--text-secondary);font-size:14px;line-height:1.6;"></div>
+      <div class="modal-footer"><button class="btn btn-primary" onclick="app.closeModal('cardInfoModal')">Got it</button></div>
     </div>
   </div>
 
