@@ -483,7 +483,7 @@
 
     .add-sticky {
       position:fixed; bottom:calc(74px + env(safe-area-inset-bottom)); left:0; right:0;
-      background:var(--surface); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); border-top:1px solid var(--glass-border-dark);
+      background:transparent; border-top:none;
       padding:10px 14px; display:flex; gap:10px; z-index:90; max-width:720px; margin:0 auto;
     }
     .add-sticky .btn { justify-content:center; height:46px; font-size:14px; }
