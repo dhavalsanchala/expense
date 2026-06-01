@@ -2318,7 +2318,7 @@
                     <div style="font-size:10px;color:var(--text-secondary);font-weight:500;">Spent ${this.fmt(spent)}</div>
                     <div style="font-size:10px;color:${remColor};font-weight:600;">${rem >= 0 ? 'Left ' + this.fmt(rem) : 'Over ' + this.fmt(Math.abs(rem))}</div>
                   </div>
-                  <button class="chip" onclick="event.stopPropagation();app.openBudgetModal('${this.esc(type)}')" style="font-size:10px;padding:4px 10px;height:28px;">Edit</button>
+                  <button class="chip" onclick="event.stopPropagation();app.editInline('${this.esc(type)}')" style="font-size:10px;padding:4px 10px;height:28px;">Edit</button>
                 </div>
               </div>
               <div class="progress-track" style="margin-bottom:6px;"><div class="progress-fill ${cls}" style="width:${pct}%"></div></div>
@@ -2344,24 +2344,11 @@
               </div>
               <div class="collapsible ${isExpanded ? 'open' : ''}" id="plan-items-${safeTypeId}">
                 <div style="padding:8px 0 4px;" onclick="event.stopPropagation();">
-                  ${hasItems ? Object.entries(itemGroups).map(([cat, items]) => {
-                    const catTotal = items.reduce((s, it) => s + (parseFloat(it.amount) || 0), 0);
-                    return `
-                      <div style="margin-bottom:6px;">
-                        <div style="font-size:10px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:3px;">${this.esc(cat)} · ${this.fmt(catTotal)}</div>
-                        ${items.map(it => `
-                          <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--glass-border-dark);">
-                            <span style="font-size:11px;color:var(--text);font-weight:500;letter-spacing:-0.01em;">${this.esc(it.name || 'Unnamed')}</span>
-                            <div style="display:flex;align-items:center;gap:6px;">
-                              ${it.frequency && it.frequency !== 'One-time' ? `<span style="font-size:9px;color:var(--text-tertiary);background:var(--bg);padding:1px 5px;border-radius:8px;border:1px solid var(--glass-border-dark);font-weight:600;">${this.esc(it.frequency)}</span>` : ''}
-                              ${it.recurringBudgetId ? `<span style="font-size:8px;color:var(--success);background:var(--success-soft);padding:1px 4px;border-radius:4px;font-weight:700;">AUTO</span>` : ''}
-                              <span style="font-size:11px;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:-0.01em;">${this.fmt(parseFloat(it.amount) || 0)}</span>
-                            </div>
-                          </div>
-                        `).join('')}
-                      </div>
-                    `;
-                  }).join('') : `<div style="color:var(--text-tertiary);font-size:12px;padding:12px 0;text-align:center;font-weight:500;">No budget items yet. Tap Edit to add items.</div>`}
+                  ${this._renderInlineCategoryGroups(type, itemGroups)}
+                  <div style="display:flex;gap:8px;margin-top:8px;">
+                    <button type="button" class="btn" style="flex:1;justify-content:center;font-size:12px;padding:9px;border-style:dashed;" onclick="event.stopPropagation();app.addInlineBudgetItem('${this.esc(type)}')">+ Add item</button>
+                    <button type="button" class="btn" style="justify-content:center;font-size:11px;padding:9px 12px;color:var(--text-secondary);" onclick="event.stopPropagation();app.setInlineDirectTotal('${this.esc(type)}')" title="Set a single total without itemizing">Set total</button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -2369,6 +2356,63 @@
           fragment.appendChild(card);
         });
         container.appendChild(fragment);
+      }
+
+      /** Render each category as its own collapsible group of editable item rows. */
+      _renderInlineCategoryGroups(type, itemGroups) {
+        if (!this.inlineExpandedCats) this.inlineExpandedCats = {};
+        const month = this.data.currentMonth;
+        const liveItems = (this.data.budgets[type] || {})[month]?.items || [];
+        // Build a stable index lookup so edits map back to the right item.
+        const cats = Object.keys(itemGroups);
+        if (cats.length === 0) {
+          return `<div style="color:var(--text-tertiary);font-size:12px;padding:10px 0;text-align:center;font-weight:500;">No items yet. Tap “+ Add item”.</div>`;
+        }
+        return cats.map(cat => {
+          const items = itemGroups[cat];
+          const catTotal = items.reduce((s, it) => s + (parseFloat(it.amount) || 0), 0);
+          const key = type + '||' + cat;
+          const open = this.inlineExpandedCats[key] !== false; // default expanded
+          const safe = (type + '_' + cat).replace(/[^a-zA-Z0-9]/g, '_');
+          const rows = items.map(it => {
+            const realIdx = liveItems.indexOf(it);
+            return this._renderInlineItemRow(type, it, realIdx);
+          }).join('');
+          return `
+            <div style="margin-bottom:8px;border:1px solid var(--glass-border-dark);border-radius:var(--radius-md);overflow:hidden;">
+              <div onclick="event.stopPropagation();app.toggleInlineCategory('${this.esc(type)}','${this.esc(cat)}')" style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--bg);cursor:pointer;user-select:none;">
+                <span style="font-size:10px;color:var(--text-tertiary);width:12px;">${open ? '▼' : '▶'}</span>
+                <span style="font-size:11px;font-weight:700;flex:1;display:flex;align-items:center;gap:5px;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>${this.esc(cat)}</span>
+                <span style="font-size:9px;color:var(--text-tertiary);background:var(--surface);padding:1px 5px;border-radius:8px;border:1px solid var(--glass-border-dark);">${items.length}</span>
+                <span style="font-size:11px;font-weight:600;font-variant-numeric:tabular-nums;">${this.fmt(catTotal)}</span>
+              </div>
+              <div style="${open ? 'display:flex;' : 'display:none;'}flex-direction:column;gap:8px;padding:8px;">${rows}</div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      /** A single editable item row (two-row card) for the inline Plan editor. */
+      _renderInlineItemRow(type, it, idx) {
+        const safeType = type.replace(/[^a-zA-Z0-9]/g, '_');
+        return `
+          <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;background:var(--surface);border-radius:var(--radius-md);border:1px solid var(--glass-border-dark);">
+            <div style="display:flex;align-items:center;gap:8px;padding:8px;width:max-content;min-width:100%;">
+              <button type="button" class="btn" style="padding:6px 10px;font-size:11px;flex:0 0 auto;white-space:nowrap;display:flex;align-items:center;gap:5px;" onclick="event.stopPropagation();app.openInlineCategoryPicker('${this.esc(type)}', ${idx})" title="${this.esc(it.category || 'Category')}">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+                <span style="white-space:nowrap;">${this.esc(it.category || 'Category')}</span>
+              </button>
+              <input type="text" data-inline-name="${safeType}" placeholder="Item name" value="${this.esc(it.name || '')}" oninput="app.updateInlineItemName('${this.esc(type)}', ${idx}, this.value)" onblur="app.commitInlineEdits('${this.esc(type)}')" class="inp" style="box-shadow:none;flex:0 0 auto;width:160px;font-size:14px;padding:8px 10px;" aria-label="Budget item name">
+              <button type="button" style="padding:6px 10px;border-radius:var(--radius-pill);border:1px solid var(--glass-border-dark);background:var(--bg);color:var(--text-secondary);font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;flex:0 0 auto;" onclick="event.stopPropagation();app.openInlineFreqPicker('${this.esc(type)}', ${idx})">${this.esc(it.frequency || 'One-time')} ▾</button>
+              <div class="input-wrapper" style="width:100px;flex:0 0 auto;">
+                <span class="input-prefix">₹</span>
+                <input type="text" class="inp" style="padding-left:26px;box-shadow:none;font-size:14px;text-align:right;" placeholder="0" value="${it.amount || ''}" oninput="app.updateInlineItemAmount('${this.esc(type)}', ${idx}, this.value)" onblur="app.commitInlineEdits('${this.esc(type)}')" inputmode="decimal" aria-label="Item amount">
+              </div>
+              ${it.recurringBudgetId ? '<span style="font-size:8px;color:var(--success);background:var(--success-soft);padding:2px 5px;border-radius:4px;font-weight:700;flex:0 0 auto;">AUTO</span>' : ''}
+              <button type="button" class="del-btn" style="width:30px;height:30px;flex:0 0 auto;" onclick="event.stopPropagation();app.deleteInlineItem('${this.esc(type)}', ${idx})" aria-label="Remove item">${this.icon('x')}</button>
+            </div>
+          </div>
+        `;
       }
 
       togglePlanItems(type) {
@@ -2386,6 +2430,198 @@
           if (collapsible) collapsible.classList.add('open');
           if (toggleEl) toggleEl.classList.add('open');
         }
+      }
+
+      // ===== INLINE PLAN BUDGET EDITING =====
+      /** Get this type/month's items (live array on data.budgets). */
+      _inlineItems(type) {
+        const month = this.data.currentMonth;
+        if (!this.data.budgets[type]) this.data.budgets[type] = {};
+        if (!this.data.budgets[type][month]) this.data.budgets[type][month] = { amount: 0, items: [] };
+        if (!Array.isArray(this.data.budgets[type][month].items)) this.data.budgets[type][month].items = [];
+        return this.data.budgets[type][month].items;
+      }
+
+      /** Persist current items for a type and re-render, keeping the type expanded. */
+      _commitInline(type, toastMsg) {
+        const month = this.data.currentMonth;
+        this._nwCache = null;
+        this.pushUndo('Edit budget');
+        const items = this._inlineItems(type);
+        this.persistBudgetItems(type, month, items);
+        this.save();
+        this.planExpandedTypes.add(type);
+        this.renderPlan();
+        if (this.data.currentTab === 'home') this.renderDashboard();
+        if (toastMsg) this.toast(toastMsg, 'ok');
+      }
+
+      addInlineBudgetItem(type) {
+        const items = this._inlineItems(type);
+        // Default the category to the most recently used one in this type, else first available.
+        const cats = (this.data.typeCategories && this.data.typeCategories[type]) || [];
+        const lastCat = items.length ? items[items.length - 1].category : '';
+        const defCat = lastCat || (cats[0] || 'Uncategorized');
+        items.push({ name: '', amount: '', category: defCat, frequency: 'One-time' });
+        if (!this.inlineExpandedCats) this.inlineExpandedCats = {};
+        this.inlineExpandedCats[type + '||' + defCat] = true; // expand the category we just added to
+        this.planExpandedTypes.add(type);
+        this.renderPlan();
+        // Focus the new item's name input.
+        setTimeout(() => {
+          const inputs = document.querySelectorAll(`[data-inline-name="${type.replace(/[^a-zA-Z0-9]/g,'_')}"]`);
+          if (inputs.length) inputs[inputs.length - 1].focus();
+        }, 50);
+      }
+
+      updateInlineItemName(type, idx, val) {
+        const items = this._inlineItems(type);
+        if (items[idx]) items[idx].name = val;
+        // Don't re-render on every keystroke; commit on blur instead.
+      }
+
+      updateInlineItemAmount(type, idx, val) {
+        const items = this._inlineItems(type);
+        if (items[idx]) items[idx].amount = val;
+      }
+
+      commitInlineEdits(type) {
+        // Called on blur of name/amount. These only change One-time values (frequency
+        // changes go through the picker, which does a full persist). So we can persist
+        // the cleaned items for storage but keep the live array — including any
+        // in-progress empty row — intact for continued editing.
+        const month = this.data.currentMonth;
+        this._nwCache = null;
+        const live = this._inlineItems(type);
+        this.persistBudgetItems(type, month, live.map(it => ({ ...it })));
+        // persist replaced the stored array with a cleaned copy; restore the live
+        // one so an empty row the user is still filling doesn't disappear.
+        this.data.budgets[type][month].items = live;
+        // Keep the stored amount in sync with the cleaned total.
+        this.data.budgets[type][month].amount = live.reduce((s, it) => s + (this.sanitizeAmount(it.amount) || 0), 0);
+        this.save();
+        this._refreshPlanHeaderNumbers();
+      }
+
+      /** Recompute the Plan top-summary numbers without rebuilding the cards. */
+      _refreshPlanHeaderNumbers() {
+        const month = this.data.currentMonth;
+        const incomeBudget = (this.data.budgets['Earning'] || {})[month]?.amount || 0;
+        let totalBudgeted = 0;
+        (this.data.expenseTypes || EXPENSE_TYPES).forEach(type => {
+          if (type !== 'Earning') totalBudgeted += (this.data.budgets[type] || {})[month]?.amount || 0;
+        });
+        const remaining = incomeBudget - totalBudgeted;
+        const ib = document.getElementById('planIncomeTotal');
+        const bb = document.getElementById('planBudgetedTotal');
+        const rb = document.getElementById('planRemainingTotal');
+        if (ib) ib.textContent = this.fmt(incomeBudget);
+        if (bb) bb.textContent = this.fmt(totalBudgeted);
+        if (rb) { rb.textContent = this.fmt(remaining); rb.style.color = remaining < 0 ? 'var(--danger)' : ''; }
+      }
+
+      deleteInlineItem(type, idx) {
+        const items = this._inlineItems(type);
+        if (idx < 0 || idx >= items.length) return;
+        items.splice(idx, 1);
+        this._commitInline(type, 'Item removed');
+      }
+
+      openInlineCategoryPicker(type, idx) {
+        const cats = (this.data.typeCategories && this.data.typeCategories[type]) || [];
+        if (cats.length === 0) { this.toast('Add categories for this type first (Types menu)', 'err'); return; }
+        const items = this._inlineItems(type);
+        const current = items[idx] ? items[idx].category : '';
+        this.openPicker('Category', cats.map(c => ({ value: c, label: c })), (val) => {
+          if (items[idx]) items[idx].category = val;
+          this._commitInline(type, null);
+        }, current);
+      }
+
+      openInlineFreqPicker(type, idx) {
+        const items = this._inlineItems(type);
+        const current = items[idx] ? items[idx].frequency : 'One-time';
+        const opts = ['One-time', 'Monthly', 'Quarterly', 'Half-Yearly', 'Annually'];
+        this.openPicker('Frequency', opts.map(o => ({ value: o, label: o })), (val) => {
+          if (items[idx]) items[idx].frequency = val;
+          this._commitInline(type, null);
+        }, current);
+      }
+
+      toggleInlineCategory(type, cat) {
+        if (!this.inlineExpandedCats) this.inlineExpandedCats = {};
+        const key = type + '||' + cat;
+        this.inlineExpandedCats[key] = !this.inlineExpandedCats[key];
+        this.renderPlan();
+      }
+
+      /** Edit button on a Plan card: expand the inline editor and scroll to it. */
+      editInline(type) {
+        this.planExpandedTypes.add(type);
+        this.renderPlan();
+        setTimeout(() => {
+          const safe = type.replace(/[^a-zA-Z0-9]/g, '_');
+          const el = document.getElementById('plan-items-' + safe);
+          if (el && el.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 60);
+      }
+
+      /** Set a single total for a type without itemizing (replaces items). */
+      setInlineDirectTotal(type) {
+        const month = this.data.currentMonth;
+        const current = (this.data.budgets[type] || {})[month]?.amount || 0;
+        const existingItems = (this.data.budgets[type] || {})[month]?.items || [];
+        const proceed = (val) => {
+          const amount = this.sanitizeAmount(val);
+          this._nwCache = null;
+          this.pushUndo('Set budget total');
+          if (!this.data.budgets[type]) this.data.budgets[type] = {};
+          this.data.budgets[type][month] = { amount, items: [] };
+          // Direct total has no items → drop this type/month's recurring budgets.
+          if (!this.data.recurringBudgets) this.data.recurringBudgets = [];
+          this.data.recurringBudgets = this.data.recurringBudgets.filter(rb => !(rb.type === type && rb.sourceMonth === month));
+          this.save();
+          this.renderPlan();
+          if (this.data.currentTab === 'home') this.renderDashboard();
+          this.toast('Budget total set', 'ok');
+        };
+        const run = () => this.promptAmount('Set total for ' + type, current, proceed);
+        if (existingItems.length > 0) {
+          // Warn that switching to a direct total clears the itemized list.
+          this.confirmCallback = () => { this.closeModal('confirmModal'); run(); };
+          const ct = document.getElementById('confirmTitle');
+          const cb = document.getElementById('confirmBody');
+          const cbtn = document.getElementById('confirmBtn');
+          if (ct) ct.textContent = 'Replace items with a total?';
+          if (cb) cb.textContent = `This will remove the ${existingItems.length} itemized entr${existingItems.length === 1 ? 'y' : 'ies'} under ${type} and set a single total instead. This can be undone once.`;
+          if (cbtn) { cbtn.textContent = 'Continue'; cbtn.className = 'btn btn-danger'; cbtn.onclick = this.confirmCallback; }
+          this.openModal('confirmModal');
+        } else {
+          run();
+        }
+      }
+
+      /** Minimal numeric prompt reusing the picker modal with a single input. */
+      promptAmount(title, current, onOk) {
+        const pickerTitle = document.getElementById('pickerTitle');
+        const pickerBody = document.getElementById('pickerBody');
+        if (!pickerTitle || !pickerBody) return;
+        pickerTitle.textContent = title;
+        pickerBody.innerHTML = `
+          <div style="padding:8px 4px;">
+            <div class="input-wrapper" style="margin-bottom:12px;">
+              <span class="input-prefix">₹</span>
+              <input type="text" id="promptAmountInput" class="inp" style="padding-left:26px;font-size:16px;" value="${current || ''}" placeholder="0" inputmode="decimal" aria-label="Amount">
+            </div>
+            <button type="button" class="btn btn-primary" style="width:100%;justify-content:center;" id="promptAmountOk">Set Total</button>
+          </div>`;
+        this.openModal('pickerModal');
+        setTimeout(() => {
+          const input = document.getElementById('promptAmountInput');
+          const ok = document.getElementById('promptAmountOk');
+          if (input) input.focus();
+          if (ok) ok.onclick = () => { const v = input ? input.value : ''; this.closePicker(); onOk(v); };
+        }, 50);
       }
 
       renderGrid() {
@@ -2585,20 +2821,24 @@
                 <span class="bm-cat-subtotal" style="font-size:11px;font-weight:600;font-variant-numeric:tabular-nums;margin-left:6px;">${this.fmt(subtotal)}</span>
                 ${freqBadge !== 'One-time' ? `<span class="bm-cat-freq" style="font-size:9px;color:var(--text-secondary);background:var(--surface);padding:1px 5px;border-radius:8px;border:1px solid var(--glass-border-dark);margin-left:4px;">${this.esc(freqBadge)}</span>` : ''}
               </div>
-              <div class="bm-category-rows" id="bm-rows-${safeCatId}" style="${isOpen ? 'display:flex;' : 'display:none;'}padding:6px;flex-direction:column;gap:6px;">
+              <div class="bm-category-rows" id="bm-rows-${safeCatId}" style="${isOpen ? 'display:flex;' : 'display:none;'}padding:8px;flex-direction:column;gap:8px;">
                 ${items.map(it => `
-                  <div class="bm-item-row" style="display:flex;align-items:center;gap:6px;padding:6px;background:var(--surface);border-radius:var(--radius-sm);border:1px solid var(--glass-border-dark);">
-                    <button type="button" class="btn" style="padding:4px 8px;font-size:11px;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:90px;" onclick="app.openBmItemCategoryPicker(this, ${it.idx})" title="${this.esc(it.category || 'Select')}">${this.esc(it.category || 'Category')}</button>
-                    <input type="text" class="inp bm-item-name" placeholder="Item name" value="${this.esc(it.name)}" oninput="app.updateBmItemName(${it.idx}, this.value)" style="box-shadow:none;flex:1;font-size:13px;padding:6px 8px;" aria-label="Budget item name">
-                    <div class="input-wrapper" style="width:90px;flex-shrink:0;">
-                      <span class="input-prefix">₹</span>
-                      <input type="text" class="inp bm-item-amt" style="padding-left:26px;box-shadow:none;font-size:13px;" placeholder="0" value="${it.amount || ''}" oninput="app.updateBmItemAmount(${it.idx}, this.value)" inputmode="decimal" aria-label="Budget item amount">
+                  <div class="bm-item-row" style="overflow-x:auto;-webkit-overflow-scrolling:touch;background:var(--surface);border-radius:var(--radius-md);border:1px solid var(--glass-border-dark);">
+                    <div style="display:flex;align-items:center;gap:8px;padding:8px;width:max-content;min-width:100%;">
+                      <button type="button" class="btn bm-item-cat" style="padding:6px 10px;font-size:11px;flex:0 0 auto;white-space:nowrap;display:flex;align-items:center;gap:5px;" onclick="app.openBmItemCategoryPicker(this, ${it.idx})" title="${this.esc(it.category || 'Select category')}">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+                        <span style="white-space:nowrap;">${this.esc(it.category || 'Category')}</span>
+                      </button>
+                      <input type="text" class="inp bm-item-name" placeholder="Item name" value="${this.esc(it.name)}" oninput="app.updateBmItemName(${it.idx}, this.value)" style="box-shadow:none;flex:0 0 auto;width:160px;font-size:14px;padding:8px 10px;" aria-label="Budget item name">
+                      <button type="button" class="bm-item-freq" style="padding:6px 10px;border-radius:var(--radius-pill);border:1px solid var(--glass-border-dark);background:var(--bg);color:var(--text-secondary);font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;font-family:inherit;flex:0 0 auto;" onclick="app.openBmItemFreqPicker(${it.idx})">${this.esc(it.frequency || 'One-time')} ▾</button>
+                      <div class="input-wrapper" style="width:100px;flex:0 0 auto;">
+                        <span class="input-prefix">₹</span>
+                        <input type="text" class="inp bm-item-amt" style="padding-left:26px;box-shadow:none;font-size:14px;text-align:right;" placeholder="0" value="${it.amount || ''}" oninput="app.updateBmItemAmount(${it.idx}, this.value)" inputmode="decimal" aria-label="Budget item amount">
+                      </div>
+                      ${it.recurringBudgetId ? '<span style="font-size:8px;color:var(--success);background:var(--success-soft);padding:2px 5px;border-radius:4px;font-weight:700;flex:0 0 auto;">AUTO</span>' : ''}
+                      <button type="button" class="del-btn" style="width:30px;height:30px;flex:0 0 auto;" onclick="app.removeBmItem(${it.idx})" aria-label="Remove budget item">${this.icon('x')}</button>
                     </div>
-                    <button type="button" class="bm-item-freq" style="padding:4px 8px;border-radius:var(--radius-pill);border:1px solid var(--glass-border-dark);background:var(--bg);color:var(--text-secondary);font-size:10px;font-weight:600;cursor:pointer;white-space:nowrap;font-family:inherit;transition:var(--transition);flex-shrink:0;" onclick="app.openBmItemFreqPicker(${it.idx})">${this.esc(it.frequency || 'One-time')} ▾</button>
-                    ${it.recurringBudgetId ? '<span style="font-size:8px;color:var(--success);background:var(--success-soft);padding:1px 4px;border-radius:4px;font-weight:700;flex-shrink:0;">AUTO</span>' : ''}
-                    <button type="button" class="del-btn" style="width:26px;height:26px;" onclick="app.removeBmItem(${it.idx})" aria-label="Remove budget item">${this.icon('x')}</button>
-                  </div>
-                `).join('')}
+                  </div>`).join('')}
               </div>
             </div>
           `;
@@ -2718,20 +2958,67 @@
         if (bmIncome) bmIncome.textContent = this.fmt(income);
         if (bmAlreadyBudgeted) bmAlreadyBudgeted.textContent = this.fmt(already + (this.editingBudget.type !== 'Earning' ? ((this.data.budgets[this.editingBudget.type] || {})[month]?.amount || 0) : 0));
         if (bmRemaining) bmRemaining.textContent = this.fmt(remaining);
-        // M5: Disable save when over-allocated (only for non-Earning types)
+        // Over-allocation no longer blocks saving — the Remaining figure above is
+        // shown purely as information. Keep Save always enabled.
         const saveBtn = document.querySelector('#budgetModal .btn-primary');
-        const warnEl = document.getElementById('bmOverAllocatedWarning');
-        const warnAmt = document.getElementById('bmOverAllocatedAmount');
-        if (saveBtn && this.editingBudget.type !== 'Earning') {
-          const overAllocated = remaining < 0;
-          saveBtn.disabled = overAllocated;
-          saveBtn.style.opacity = overAllocated ? '0.4' : '1';
-          saveBtn.style.cursor = overAllocated ? 'not-allowed' : 'pointer';
-          if (warnEl) warnEl.style.display = overAllocated ? 'block' : 'none';
-          if (warnAmt) warnAmt.textContent = overAllocated ? this.fmt(Math.abs(remaining)) : '';
-        } else {
-          if (warnEl) warnEl.style.display = 'none';
+        if (saveBtn) {
+          saveBtn.disabled = false;
+          saveBtn.style.opacity = '1';
+          saveBtn.style.cursor = 'pointer';
         }
+      }
+
+      /**
+       * Write a type/month's items to data.budgets and reconcile recurringBudgets.
+       * Shared by the budget modal and the inline Plan editor so the recurring
+       * logic lives in exactly one place. `items` is an array of
+       * {name, amount, category, frequency, recurringBudgetId?}.
+       */
+      persistBudgetItems(type, month, items) {
+        if (!this.data.budgets[type]) this.data.budgets[type] = {};
+        let amount = 0;
+        const clean = [];
+        items.forEach(it => {
+          const name = (it.name || '').trim();
+          const amt = this.sanitizeAmount(it.amount);
+          const cat = it.category || '';
+          const freq = it.frequency || 'One-time';
+          if (name || amt > 0) {
+            clean.push({ name, amount: amt, category: cat, frequency: freq, recurringBudgetId: it.recurringBudgetId });
+            amount += amt;
+          }
+        });
+        this.data.budgets[type][month] = { amount, items: clean };
+
+        if (!this.data.recurringBudgets) this.data.recurringBudgets = [];
+        const currentRbIds = new Set(
+          clean.filter(it => (it.frequency || 'One-time') !== 'One-time')
+               .map(it => it.recurringBudgetId).filter(Boolean)
+        );
+        this.data.recurringBudgets = this.data.recurringBudgets.filter(rb => {
+          if (rb.type === type && rb.sourceMonth === month) return currentRbIds.has(rb.id);
+          return true;
+        });
+        clean.forEach(it => {
+          const freq = it.frequency || 'One-time';
+          if (freq === 'One-time') return;
+          const existingIdx = this.data.recurringBudgets.findIndex(rb => rb.id === it.recurringBudgetId);
+          if (existingIdx >= 0) {
+            this.data.recurringBudgets[existingIdx] = {
+              ...this.data.recurringBudgets[existingIdx],
+              category: it.category || '', name: it.name || '', amount: it.amount || 0, frequency: freq
+            };
+          } else {
+            const newId = 'rb_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+            it.recurringBudgetId = newId;
+            this.data.recurringBudgets.push({
+              id: newId, type, category: it.category || '', name: it.name || '',
+              amount: it.amount || 0, frequency: freq, sourceMonth: month,
+              lastGenerated: month, excludedMonths: []
+            });
+          }
+        });
+        return clean;
       }
 
       saveBudget() {
@@ -2742,69 +3029,15 @@
         if (!this.data.budgets[type]) this.data.budgets[type] = {};
 
         const mode = this.data.budgetMode;
-        let amount = 0;
-        let items = [];
 
         if (mode === 'direct') {
-          amount = this.sanitizeAmount(document.getElementById('bmAmount').value);
+          const amount = this.sanitizeAmount(document.getElementById('bmAmount').value);
+          this.data.budgets[type][month] = { amount, items: [] };
+          // Direct mode has no items → clear any recurring budgets for this type/month.
+          if (!this.data.recurringBudgets) this.data.recurringBudgets = [];
+          this.data.recurringBudgets = this.data.recurringBudgets.filter(rb => !(rb.type === type && rb.sourceMonth === month));
         } else {
-          this.bmItems.forEach(it => {
-            const name = (it.name || '').trim();
-            const amt = this.sanitizeAmount(it.amount);
-            const cat = it.category || '';
-            const freq = it.frequency || 'One-time';
-            if (name || amt > 0) {
-              items.push({ name, amount: amt, category: cat, frequency: freq, recurringBudgetId: it.recurringBudgetId });
-              amount += amt;
-            }
-          });
-        }
-
-        this.data.budgets[type][month] = { amount, items };
-
-        if (!this.data.recurringBudgets) this.data.recurringBudgets = [];
-
-        const currentRbIds = new Set(
-          items
-            .filter(it => (it.frequency || 'One-time') !== 'One-time')
-            .map(it => it.recurringBudgetId)
-            .filter(Boolean)
-        );
-        this.data.recurringBudgets = this.data.recurringBudgets.filter(rb => {
-          if (rb.type === type && rb.sourceMonth === month) {
-            return currentRbIds.has(rb.id);
-          }
-          return true;
-        });
-
-        if (mode === 'items') {
-          items.forEach(it => {
-            const freq = it.frequency || 'One-time';
-            if (freq !== 'One-time') {
-              const existingIdx = this.data.recurringBudgets.findIndex(rb => rb.id === it.recurringBudgetId);
-              if (existingIdx >= 0) {
-                this.data.recurringBudgets[existingIdx] = {
-                  ...this.data.recurringBudgets[existingIdx],
-                  category: it.category || '',
-                  name: it.name || '',
-                  amount: it.amount || 0,
-                  frequency: freq
-                };
-              } else {
-                this.data.recurringBudgets.push({
-                  id: 'rb_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
-                  type,
-                  category: it.category || '',
-                  name: it.name || '',
-                  amount: it.amount || 0,
-                  frequency: freq,
-                  sourceMonth: month,
-                  lastGenerated: month,
-                  excludedMonths: []
-                });
-              }
-            }
-          });
+          this.persistBudgetItems(type, month, this.bmItems);
         }
 
         this.save();
