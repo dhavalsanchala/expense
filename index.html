@@ -55,6 +55,10 @@
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
             <span>Theme</span>
           </button>
+          <button class="header-menu-item" onclick="app.setTab('track');app.closeHeaderMenu()" role="menuitem">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+            <span>Lifecycle</span>
+          </button>
           <button class="header-menu-item" onclick="app.openBackupModal();app.closeHeaderMenu()" role="menuitem">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 6v6l4 2"/></svg>
             <span>Backup</span>
@@ -163,6 +167,11 @@
             <span style="font-size:24px;font-weight:700;color:var(--text-tertiary);">₹</span>
             <input type="text" id="txAmount" class="add-hero-input" placeholder="0" required style="width:180px;" inputmode="decimal" aria-label="Transaction amount">
           </div>
+        </div>
+
+        <div id="quickAddWrap" style="display:none;">
+          <div class="add-section-title">Quick Add <span style="font-weight:500;color:var(--text-tertiary);font-size:10px;">— tap to prefill, then enter amount</span></div>
+          <div class="add-quick-row" id="quickAddRow" style="overflow-x:auto;flex-wrap:nowrap;padding-bottom:4px;"></div>
         </div>
 
         <div class="add-section-title">Expense Type</div>
@@ -549,17 +558,12 @@
         <span class="dock-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span>
         <span>Home</span>
       </button>
-      <button class="dock-btn" onclick="app.onAddTabClick()" aria-label="Add transaction tab" aria-controls="addSection">
-        <span class="dock-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg></span>
-        <span>Add</span>
-      </button>
       <button class="dock-btn" onclick="app.setTab('plan')" aria-label="Budget plan tab" aria-controls="planSection">
         <span class="dock-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></span>
         <span>Plan</span>
       </button>
-      <button class="dock-btn" onclick="app.setTab('track')" aria-label="Product lifecycle tab" aria-controls="trackSection">
-        <span class="dock-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></span>
-        <span>Lifecycle</span>
+      <button class="dock-fab" onclick="app.onAddTabClick()" aria-label="Add transaction" title="Add transaction">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       </button>
       <button class="dock-btn" onclick="app.setTab('history')" aria-label="Transaction history tab" aria-controls="historySection">
         <span class="dock-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span>

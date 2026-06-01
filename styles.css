@@ -145,6 +145,14 @@
     .dock-btn .dock-icon { display:flex; align-items:center; justify-content:center; }
     .dock-btn.on { background:var(--accent); color:var(--accent-inverse); box-shadow:var(--shadow-soft); }
     .dock-btn:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:var(--radius-pill); }
+    .dock-fab {
+      width:52px; height:52px; margin:0 4px; margin-top:-22px; border-radius:50%; border:none; cursor:pointer;
+      background:var(--accent); color:var(--accent-inverse);
+      display:flex; align-items:center; justify-content:center; flex-shrink:0;
+      box-shadow:0 6px 16px rgba(0,0,0,0.28); transition:var(--transition);
+    }
+    .dock-fab:active { transform:scale(0.92); }
+    .dock-fab:focus-visible { outline:3px solid var(--accent); outline-offset:3px; }
 
 
     /* Cards */
@@ -197,6 +205,8 @@
     .tx-title { font-size:13px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; letter-spacing:-0.01em; }
     .tx-meta { font-size:10px; color:var(--text-tertiary); font-weight:500; margin-top:2px; }
     .tx-amount { font-size:13px; font-weight:600; font-variant-numeric:tabular-nums; flex-shrink:0; letter-spacing:-0.01em; }
+    .tx-amount.income { color:var(--success); }
+    .tx-amount.expense { color:var(--accent); }
     .tx-actions { display:flex; gap:8px; align-items:center; flex-shrink:0; }
 
     .tx-date-header { display:flex; align-items:center; padding:10px 0 6px; }
@@ -460,6 +470,7 @@
     .add-chip:active { box-shadow:var(--shadow-neu-inset); transform:scale(0.96); }
     .add-chip.on { background:var(--accent); color:var(--accent-inverse); border-color:var(--accent); }
     .add-chip:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+    .quick-add-tile { border-color:var(--accent); }
 
     .add-section-title {
       font-size:9px; font-weight:700; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.14em; margin:10px 0 6px 2px;

@@ -391,6 +391,11 @@
         });
         // C3: Event delegation for grid cells, copy rows, clear-budget rows, copy-month rows
         document.addEventListener('click', (e) => {
+          const quickTile = e.target.closest('.quick-add-tile[data-action="quick-fill"]');
+          if (quickTile) {
+            this.quickFill(quickTile.dataset.item);
+            return;
+          }
           const gridCell = e.target.closest('.annual-cell[data-grid-type]');
           if (gridCell) {
             const type = gridCell.dataset.gridType;
@@ -500,7 +505,7 @@
         this.renderAll();
       }
 
-      onAddTabClick() { this.resetForm(); this.setTab('add'); }
+      onAddTabClick() { this.resetForm(); this.setTab('add'); this.renderQuickAdd(); }
 
       renderAll() {
         try {
@@ -1061,6 +1066,44 @@
         this.toast('Auto-filled from previous expense', 'ok');
       }
 
+      // Quick Add: surface the most recent distinct items as one-tap tiles that
+      // prefill the whole form (type/category/item/mode/vendor/brand), leaving
+      // only the amount to enter. Reuses fillFromPreviousItem for the actual fill.
+      renderQuickAdd() {
+        const wrap = document.getElementById('quickAddWrap');
+        const row = document.getElementById('quickAddRow');
+        if (!row || !wrap) return;
+        const seen = new Set();
+        const recent = [];
+        // newest first, skip transfers/split parents, dedupe by item name
+        [...this.data.transactions]
+          .filter(t => t && t.item && t.type !== 'Transfer' && !t.isSplitParent && !t.mirrorOf)
+          .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+          .forEach(t => {
+            const key = t.item.trim().toLowerCase();
+            if (seen.has(key)) return;
+            seen.add(key);
+            if (recent.length < 8) recent.push(t);
+          });
+        if (recent.length === 0) { wrap.style.display = 'none'; return; }
+        wrap.style.display = 'block';
+        row.innerHTML = recent.map(t => {
+          const label = this.esc(t.item.length > 16 ? t.item.slice(0, 15) + '…' : t.item);
+          const sub = this.esc(t.category || t.type || '');
+          return `<button type="button" class="add-chip quick-add-tile" data-action="quick-fill" data-item="${this.esc(t.item)}">
+            <span style="font-weight:700;">${label}</span>${sub ? `<span style="opacity:0.6;font-size:9px;margin-left:5px;">${sub}</span>` : ''}
+          </button>`;
+        }).join('');
+      }
+
+      quickFill(itemName) {
+        this.fillFromPreviousItem(itemName);
+        // Clear the amount so the user enters a fresh value, and focus it.
+        const txAmount = document.getElementById('txAmount');
+        if (txAmount) { txAmount.value = ''; txAmount.focus(); }
+        this.toast('Prefilled — enter amount', 'ok');
+      }
+
       txSum(txs) {
         if (!Array.isArray(txs)) return 0;
         return txs.reduce((s, t) => s + (t && t.isSplitParent ? 0 : (t.amount || 0)), 0);
@@ -1206,6 +1249,10 @@
         const earnBadge = (t.type === 'Earning' && t.mirrorOf) ? '<span style="font-size:8px;background:var(--success-soft);color:var(--success);padding:1px 3px;border-radius:3px;margin-left:3px;font-weight:700;border:1px solid var(--glass-border-dark);">Transfer In</span>' : '';
         const recBadge = t.recurringId ? '<span style="font-size:8px;background:var(--bg);color:var(--success);padding:1px 3px;border-radius:3px;margin-left:3px;font-weight:700;border:1px solid var(--glass-border-dark);">R</span>' : '';
         const splitBadge = t.isSplitParent ? '<span style="font-size:8px;background:var(--bg);color:var(--text-secondary);padding:1px 3px;border-radius:3px;margin-left:3px;font-weight:700;border:1px solid var(--glass-border-dark);">S</span>' : '';
+        const isIncome = (t.type === 'Earning');
+        const isExpense = !isIncome && t.type !== 'Transfer';
+        const amtClass = isIncome ? 'tx-amount income' : (isExpense ? 'tx-amount expense' : 'tx-amount');
+        const sign = isIncome ? '+' : (isExpense ? '\u2212' : '');
         return `
           <div class="tx-item" onclick="app.editTransaction('${t.id}')">
             <div class="tx-icon">${type.charAt(0).toUpperCase()}</div>
@@ -1213,7 +1260,7 @@
               <div class="tx-title">${this.esc(t.item || 'Untitled')}${srcBadge}${recBadge}${splitBadge}${xferBadge}${earnBadge}</div>
               <div class="tx-meta">${this.esc(type)} · ${this.esc(t.category || '')}${t.mode ? ' · ' + this.esc(t.mode) : ''}${t.subMode ? ' · ' + this.esc(t.subMode) : ''} · ${t.date.slice(8)}${t.vendor ? ' · ' + this.esc(t.vendor) : ''}${evt ? ' · ' + this.esc(evt.name) : ''}</div>
             </div>
-            <div class="tx-amount">${this.fmt(this.txDisplayAmount(t))}</div>
+            <div class="${amtClass}">${sign}${this.fmt(this.txDisplayAmount(t))}</div>
           </div>`;
       }
 
