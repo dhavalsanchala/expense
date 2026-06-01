@@ -2712,7 +2712,7 @@
         }
         this.updateBudgetAllocation();
         // Reset save button state unconditionally (prevents stuck disabled state from previous non-Earning modal)
-        const saveBtn = document.querySelector('#budgetModal .btn-primary');
+        const saveBtn = document.getElementById('saveBudgetBtn');
         if (saveBtn) {
           saveBtn.disabled = false;
           saveBtn.style.opacity = '1';
@@ -2960,7 +2960,7 @@
         if (bmRemaining) bmRemaining.textContent = this.fmt(remaining);
         // Over-allocation no longer blocks saving — the Remaining figure above is
         // shown purely as information. Keep Save always enabled.
-        const saveBtn = document.querySelector('#budgetModal .btn-primary');
+        const saveBtn = document.getElementById('saveBudgetBtn');
         if (saveBtn) {
           saveBtn.disabled = false;
           saveBtn.style.opacity = '1';

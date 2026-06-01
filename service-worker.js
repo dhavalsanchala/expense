@@ -6,7 +6,7 @@
  * IMPORTANT: bump CACHE_VERSION on every deploy that changes shell files.
  * Format: expense-tracker-shell-YYYYMMDD-N
  */
-const CACHE_VERSION = 'expense-tracker-shell-20260601-20';
+const CACHE_VERSION = 'expense-tracker-shell-20260601-21';
 
 // Shell files = the app code itself. Network-first.
 const SHELL_FILES = [
