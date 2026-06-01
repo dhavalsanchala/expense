@@ -482,11 +482,14 @@
     }
 
     .add-sticky {
-      position:fixed; bottom:calc(58px + env(safe-area-inset-bottom)); left:0; right:0;
+      position:fixed; bottom:calc(74px + env(safe-area-inset-bottom)); left:0; right:0;
       background:var(--surface); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); border-top:1px solid var(--glass-border-dark);
-      padding:10px 14px calc(10px + env(safe-area-inset-bottom)); display:flex; gap:8px; z-index:90; max-width:720px; margin:0 auto;
+      padding:10px 14px; display:flex; gap:10px; z-index:90; max-width:720px; margin:0 auto;
     }
-    .add-sticky .btn { flex:1; justify-content:center; }
+    .add-sticky .btn { justify-content:center; height:46px; font-size:14px; }
+    /* Save is the primary action — give it dominant width; Clear is a quiet secondary. */
+    .add-sticky .btn-clear { flex:0 0 90px; color:var(--text-secondary); }
+    .add-sticky .btn-save { flex:1; font-weight:700; }
 
     .collapsible { max-height:0; overflow:hidden; transition:max-height 300ms ease; padding:0 !important; margin:0 !important; }
     .collapsible.open { max-height:2000px; padding:2px 0 !important; }

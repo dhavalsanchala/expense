@@ -485,12 +485,17 @@
           }, 60000);
         }
         this.data.currentTab = tab;
+        // Dock now has 5 screen buttons (Add is the center FAB, not a dock-btn).
+        const dockOrder = ['home', 'plan', 'history', 'reports'];
         const btns = document.querySelectorAll('.dock-btn');
-        if (btns.length) {
-          btns.forEach(b => b.classList.remove('on'));
-          const idx = ['home','add','plan','track','history','reports'].indexOf(tab);
-          if (idx >= 0 && idx < btns.length) btns[idx].classList.add('on');
-        }
+        btns.forEach(b => b.classList.remove('on'));
+        // Map: btn[0]=home, btn[1]=plan, btn[2]=history, btn[3]=reports.
+        const dockIdx = dockOrder.indexOf(tab);
+        if (dockIdx >= 0 && dockIdx < btns.length) btns[dockIdx].classList.add('on');
+        // The Add FAB is redundant while already on the Add screen; hide it there
+        // so it never overlaps the Save/Clear bar.
+        const fab = document.querySelector('.dock-fab');
+        if (fab) fab.style.display = (tab === 'add') ? 'none' : 'flex';
         const sections = ['homeSection','addSection','planSection','trackSection','historySection','reportsSection'];
         const tabs = ['home','add','plan','track','history','reports'];
         sections.forEach((id, i) => {
