@@ -168,6 +168,9 @@
         this.planExpandedTypes = new Set();
         this.historyLimit = 50;
         this.historyOffset = 0;
+        this.historyShown = 50;            // how many rows are currently rendered (append mode)
+        this.historySelected = new Set();  // ids selected in multi-select mode
+        this.historySelectMode = false;    // whether multi-select is active
         this._nwCache = null;
         this._lastFocused = null;
         this.clearBudgetMonths = new Set();
@@ -191,6 +194,14 @@
 
       isSelfProfile() { return this.allData.activeProfile === 'self'; }
       getProfileSource() { return this.isSelfProfile() ? 'Personal' : 'Joint Account'; }
+
+      /** True for a transfer that moves money OUT of the current account.
+       *  These now count toward the "Spent" total (mirrors are excluded —
+       *  they are the incoming leg in the other profile). */
+      isOutgoingTransfer(t) {
+        if (!t || t.type !== 'Transfer' || t.mirrorOf) return false;
+        return ['Personal to Joint', 'Joint to Personal', 'Other Transfer'].includes(t.category);
+      }
 
       migrateOldData(old) {
         const d = JSON.parse(JSON.stringify(old));
@@ -521,11 +532,15 @@
           }, 60000);
         }
         this.data.currentTab = tab;
+        // Drop any lingering History multi-select bar when leaving the History tab.
+        if (tab !== 'history' && this.historySelectMode) {
+          this.clearHistorySelectionSilent();
+        }
         // Dock now has 5 screen buttons (Add is the center FAB, not a dock-btn).
-        const dockOrder = ['home', 'plan', 'history', 'reports'];
+        // Order: home, plan, history, track (Lifecycle). Reports lives in the gear menu.
+        const dockOrder = ['home', 'plan', 'history', 'track'];
         const btns = document.querySelectorAll('.dock-btn');
         btns.forEach(b => b.classList.remove('on'));
-        // Map: btn[0]=home, btn[1]=plan, btn[2]=history, btn[3]=reports.
         const dockIdx = dockOrder.indexOf(tab);
         if (dockIdx >= 0 && dockIdx < btns.length) btns[dockIdx].classList.add('on');
         // The Add FAB is redundant while already on the Add screen; hide it there
@@ -827,6 +842,8 @@
         this.historySourceFilter = null;
         this.historySearchQuery = '';
         this.historyOffset = 0;
+        this.historyShown = this.historyLimit;
+        this.clearHistorySelectionSilent && this.clearHistorySelectionSilent();
         // M8: Clear date filters and search on profile switch
         const hFrom = document.getElementById('historyDateFrom');
         const hTo = document.getElementById('historyDateTo');
@@ -972,7 +989,7 @@
           budget: ['Budget', 'The total budget you planned for this month, with how much is still remaining after what you’ve spent.'],
           cashflow: ['Cash Flow Trend', 'A 6-month view of money in versus money out, so you can see whether your balance is trending up or down over time.'],
           byType: ['By Expense Type', 'This month’s spending grouped by expense type (Essential, Non-essential, and so on), so you can see where the money goes at a glance.'],
-          tracked: ['Tracked Expenses', 'Items you flagged with Product Lifecycle tracking — things with a start date, duration, and status. Useful for subscriptions, warranties, or anything with a lifespan.'],
+          tracked: ['Tracked Transactions', 'Every transaction recorded this month, grouped by expense type and category. Where a budget is set for that type, a progress bar shows spend against budget; income, savings, investment and transfer types are shown without a budget bar.'],
           events: ['Active Events', 'Spending events currently running (like a trip or a wedding). Transactions tagged to an event are grouped so you can see the total spend per event.'],
           goals: ['Goals', 'Your savings goals and progress toward each target. Tap Manage to add or edit goals.'],
           accounts: ['Account Balances', 'The balances you’ve recorded for each account. These feed the net-worth view. Tap Edit to update them.'],
@@ -1183,7 +1200,7 @@
       renderDashboard() {
         const month = this.data.currentMonth;
         const txs = this.data.transactions.filter(t => t && t.date && t.date.startsWith(month));
-        const spent = this.txSum(txs.filter(t => ['Essential','Non-essential','Vacation'].includes(t.type)));
+        const spent = this.txSum(txs.filter(t => ['Essential','Non-essential','Vacation'].includes(t.type) || this.isOutgoingTransfer(t)));
 
         let budget = 0;
         Object.entries(this.data.budgets).forEach(([typeKey, type]) => { if (typeKey !== 'Earning' && type && type[month]) budget += type[month].amount || 0; });
@@ -1235,8 +1252,14 @@
               const p = b > 0 ? Math.min((amount / b) * 100, 100) : 0;
               const cls = p > 90 ? 'danger' : p > 75 ? 'warning' : '';
               const comp = this.getMonthlyComparison(type);
+              const compStyle = comp.diff > 0
+                ? 'background:var(--danger-soft);color:var(--danger);'
+                : comp.diff < 0
+                  ? 'background:var(--success-soft);color:var(--success);'
+                  : 'background:var(--bg);color:var(--text-tertiary);';
+              const compSign = comp.diff > 0 ? '+' : '';
               const compBadge = comp.prevSpent > 0
-                ? `<span style="font-size:8px;font-weight:700;padding:1px 4px;border-radius:3px;margin-left:4px;${comp.diff >= 0 ? 'background:var(--danger-soft);color:var(--danger);' : 'background:var(--success-soft);color:var(--success);'}">${comp.diff >= 0 ? '+' : ''}${comp.pct}%</span>`
+                ? `<span style="font-size:8px;font-weight:700;padding:1px 4px;border-radius:3px;margin-left:4px;${compStyle}">${compSign}${comp.pct}%</span>`
                 : '';
               const typeBudgetData = (this.data.budgets[type] || {})[month] || { amount: 0, items: [] };
               const fixedB = (typeBudgetData.items || []).reduce((s, i) => s + ((i.frequency && i.frequency !== 'One-time') ? (i.amount || 0) : 0), 0);
@@ -1253,14 +1276,15 @@
           }
         }
 
-        // Tracked Expenses by Type and Category
-        const expenseTxs = this.data.transactions.filter(t => t && t.date && t.date.startsWith(month) && !t.isSplitParent && ['Essential','Non-essential','Vacation'].includes(t.type));
+        // Tracked Transactions — all transaction types (exclude split parents only;
+        // mirrors are kept so a Joint-side Transfer In shows under its income type).
+        const expenseTxs = this.data.transactions.filter(t => t && t.date && t.date.startsWith(month) && !t.isSplitParent);
         const trackedContainer = document.getElementById('dashTracked');
         const trackedCount = document.getElementById('dashTrackedCount');
         if (trackedCount) trackedCount.textContent = expenseTxs.length;
         if (trackedContainer) {
           if (expenseTxs.length === 0) {
-            trackedContainer.innerHTML = '<div style="color:var(--text-tertiary);font-size:12px;padding:6px 0;">No tracked expenses this month</div>';
+            trackedContainer.innerHTML = '<div style="color:var(--text-tertiary);font-size:12px;padding:6px 0;">No transactions this month</div>';
           } else {
             const byType = {};
             expenseTxs.forEach(t => {
@@ -1268,23 +1292,33 @@
               if (!byType[t.type][t.category || 'Uncategorized']) byType[t.type][t.category || 'Uncategorized'] = 0;
               byType[t.type][t.category || 'Uncategorized'] += t.amount || 0;
             });
-            trackedContainer.innerHTML = Object.entries(byType).map(([type, cats]) => {
+            // Stable, readable ordering: known types first, then any custom ones.
+            const typeOrder = (this.data.expenseTypes || EXPENSE_TYPES);
+            const orderedTypes = Object.keys(byType).sort((a, b) => {
+              const ia = typeOrder.indexOf(a), ib = typeOrder.indexOf(b);
+              return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+            });
+            trackedContainer.innerHTML = orderedTypes.map((type) => {
+              const cats = byType[type];
               const typeTotal = Object.values(cats).reduce((a,b) => a+b, 0);
               const typeBudget = (this.data.budgets[type] || {})[month]?.amount || 0;
               const typePct = typeBudget > 0 ? Math.min((typeTotal / typeBudget) * 100, 100) : 0;
-              const typeCls = typePct > 90 ? 'danger' : typePct > 75 ? 'warning' : '';
+              // Only expense types get over-budget warning colors; income/saving/
+              // investment/transfer bars stay neutral since "over plan" isn't bad.
+              const isExpenseType = ['Essential','Non-essential','Vacation'].includes(type);
+              const typeCls = (isExpenseType && typePct > 90) ? 'danger' : (isExpenseType && typePct > 75) ? 'warning' : '';
               return `
                 <div style="margin-bottom:14px;">
                   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-                    <span style="font-size:12px;font-weight:600;">${this.esc(type)}</span>
+                    <span style="font-size:12px;font-weight:600;display:flex;align-items:center;gap:4px;">${this.typeIcon(type, 'width:16px;height:16px;font-size:8px;')}${this.esc(type)}</span>
                     <span style="font-size:11px;color:var(--text-secondary);font-weight:500;">${this.fmt(typeTotal)} ${typeBudget ? '/ ' + this.fmt(typeBudget) : ''}</span>
                   </div>
-                  <div class="progress-track" style="margin-bottom:8px;"><div class="progress-fill ${typeCls}" style="width:${typePct}%"></div></div>
+                  ${typeBudget > 0 ? `<div class="progress-track" style="margin-bottom:8px;"><div class="progress-fill ${typeCls}" style="width:${typePct}%"></div></div>` : '<div style="margin-bottom:6px;"></div>'}
                   <div style="display:flex;flex-direction:column;gap:4px;padding-left:8px;border-left:2px solid var(--glass-border-dark);">
                     ${Object.entries(cats).sort((a,b) => b[1]-a[1]).map(([cat, amt]) => {
                       const catBudget = ((this.data.budgets[type] || {})[month]?.items || []).filter(i => i.category === cat).reduce((s,i) => s + (i.amount || 0), 0);
                       const catPct = catBudget > 0 ? Math.min((amt / catBudget) * 100, 100) : 0;
-                      const catCls = catPct > 90 ? 'danger' : catPct > 75 ? 'warning' : '';
+                      const catCls = (isExpenseType && catPct > 90) ? 'danger' : (isExpenseType && catPct > 75) ? 'warning' : '';
                       return `
                         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">
                           <span style="font-size:11px;color:var(--text-secondary);font-weight:500;">${this.esc(cat)}</span>
@@ -1324,16 +1358,19 @@
         const xferBadge = (t.type === 'Transfer' && t.category) ? `<span style="font-size:8px;background:var(--bg);color:var(--text-secondary);padding:1px 3px;border-radius:3px;margin-left:3px;font-weight:700;border:1px solid var(--glass-border-dark);">${this.esc(t.category)}</span>` : '';
         const earnBadge = (t.type === 'Earning' && t.mirrorOf) ? '<span style="font-size:8px;background:var(--success-soft);color:var(--success);padding:1px 3px;border-radius:3px;margin-left:3px;font-weight:700;border:1px solid var(--glass-border-dark);">Transfer In</span>' : '';
         const recBadge = t.recurringId ? '<span style="font-size:8px;background:var(--bg);color:var(--success);padding:1px 3px;border-radius:3px;margin-left:3px;font-weight:700;border:1px solid var(--glass-border-dark);">R</span>' : '';
+        const remBadge = (t.recurringId && t.recurrenceCount && t.seriesIndex)
+          ? `<span style="font-size:8px;background:var(--bg);color:var(--text-secondary);padding:1px 3px;border-radius:3px;margin-left:3px;font-weight:700;border:1px solid var(--glass-border-dark);">${Math.max(t.recurrenceCount - t.seriesIndex, 0)} left</span>`
+          : '';
         const splitBadge = t.isSplitParent ? '<span style="font-size:8px;background:var(--bg);color:var(--text-secondary);padding:1px 3px;border-radius:3px;margin-left:3px;font-weight:700;border:1px solid var(--glass-border-dark);">S</span>' : '';
         const isIncome = (t.type === 'Earning');
-        const isExpense = !isIncome && t.type !== 'Transfer';
+        const isExpense = (!isIncome && t.type !== 'Transfer') || this.isOutgoingTransfer(t);
         const amtClass = isIncome ? 'tx-amount income' : (isExpense ? 'tx-amount expense' : 'tx-amount');
         const sign = isIncome ? '+' : (isExpense ? '\u2212' : '');
         return `
           <div class="tx-item" onclick="app.editTransaction('${t.id}')">
             ${this.typeIcon(type)}
             <div class="tx-content">
-              <div class="tx-title">${this.esc(t.item || 'Untitled')}${srcBadge}${recBadge}${splitBadge}${xferBadge}${earnBadge}</div>
+              <div class="tx-title">${this.esc(t.item || 'Untitled')}${srcBadge}${recBadge}${remBadge}${splitBadge}${xferBadge}${earnBadge}</div>
               <div class="tx-meta">${this.esc(type)} · ${this.esc(t.category || '')}${t.mode ? ' · ' + this.esc(t.mode) : ''}${t.subMode ? ' · ' + this.esc(t.subMode) : ''} · ${t.date.slice(8)}${t.vendor ? ' · ' + this.esc(t.vendor) : ''}${evt ? ' · ' + this.esc(evt.name) : ''}</div>
             </div>
             <div class="${amtClass}">${sign}${this.fmt(this.txDisplayAmount(t))}</div>
@@ -1540,6 +1577,12 @@
           recurringJustSet = true;
         }
 
+        // The first occurrence is position 1 within a counted series so it can
+        // display its own "remaining" figure consistently with later instances.
+        if (t.recurringId && t.recurrenceCount) {
+          t.seriesIndex = 1;
+        }
+
         this.save();
         // Back-fill any past/intervening months immediately so the user doesn't
         // have to restart the app to see a retrospective recurring series appear.
@@ -1692,8 +1735,19 @@
         });
         const txRecurrenceCount = document.getElementById('txRecurrenceCount');
         const txRecurrenceCountDisplay = document.getElementById('txRecurrenceCountDisplay');
-        if (txRecurrenceCount) txRecurrenceCount.value = t.recurrenceCount || '';
-        if (txRecurrenceCountDisplay) txRecurrenceCountDisplay.textContent = t.recurrenceCount ? String(t.recurrenceCount) : 'Unlimited';
+        // Prefer the series total from the template so editing a later instance
+        // never silently resets the count to Unlimited.
+        const recTpl = t.recurringId ? (this.data.recurring || []).find(r => r.id === t.recurringId) : null;
+        const seriesTotal = (recTpl && recTpl.recurrenceCount) || t.recurrenceCount || null;
+        if (txRecurrenceCount) txRecurrenceCount.value = seriesTotal || '';
+        if (txRecurrenceCountDisplay) {
+          if (seriesTotal && t.seriesIndex) {
+            const remaining = Math.max(seriesTotal - t.seriesIndex, 0);
+            txRecurrenceCountDisplay.textContent = `${seriesTotal} (${remaining} remaining)`;
+          } else {
+            txRecurrenceCountDisplay.textContent = seriesTotal ? String(seriesTotal) : 'Unlimited';
+          }
+        }
 
         const evt = t.eventId ? this.data.events.find(e => e.id === t.eventId) : null;
         const txEventId = document.getElementById('txEventId');
@@ -1952,7 +2006,7 @@
 
       openRecurrenceCountPicker() {
         const items = [{ value: '', label: 'Unlimited' }];
-        for (let i = 1; i <= 12; i++) {
+        for (let i = 1; i <= 60; i++) {
           items.push({ value: String(i), label: String(i) });
         }
         const current = document.getElementById('txRecurrenceCount').value;
@@ -2106,6 +2160,9 @@
                 const lastDay = new Date(ty, tm, 0).getDate();
                 const actualDay = Math.min(day, lastDay);
                 const date = `${monthKey}-${String(actualDay).padStart(2, '0')}`;
+                // 1-based position of this occurrence within the series. existingInstances
+                // already excludes this not-yet-pushed one, so +1 gives this occurrence's index.
+                const seriesIndex = existingInstances.length + 1;
                 this.data.transactions.push({
                   id: 'tx_' + Date.now() + '_' + String(generatedCount).padStart(3, '0'),
                   date,
@@ -2120,7 +2177,9 @@
                   frequency: rec.frequency,
                   source: rec.source,
                   eventId: rec.eventId || undefined,
-                  recurringId: rec.id
+                  recurringId: rec.id,
+                  recurrenceCount: rec.recurrenceCount || null,
+                  seriesIndex: rec.recurrenceCount ? seriesIndex : null
                 });
                 generatedCount++;
               }
@@ -3475,6 +3534,8 @@
           if (historyDateFrom) historyDateFrom.value = '';
           if (historyDateTo) historyDateTo.value = '';
           this.historyOffset = 0;
+          this.historyShown = this.historyLimit;
+          this.clearHistorySelectionSilent && this.clearHistorySelectionSilent();
           this.renderHistory();
           return;
         }
@@ -3528,6 +3589,8 @@
         if (historyDateFrom) historyDateFrom.value = dateFrom;
         if (historyDateTo) historyDateTo.value = dateTo;
         this.historyOffset = 0;
+        this.historyShown = this.historyLimit;
+        this.clearHistorySelectionSilent && this.clearHistorySelectionSilent();
         this.renderHistory();
       }
 
@@ -3552,6 +3615,8 @@
         const el = document.getElementById('historySearch');
         this.historySearchQuery = el ? el.value.toLowerCase().trim() : '';
         this.historyOffset = 0;
+        this.historyShown = this.historyLimit;
+        this.clearHistorySelectionSilent && this.clearHistorySelectionSilent();
         this.renderHistory();
       }
 
@@ -3644,7 +3709,16 @@
         }
 
         const totalCount = txs.length;
-        const paginated = txs.slice(this.historyOffset, this.historyOffset + this.historyLimit);
+        // Append mode: every "Load More" grows historyShown; filters reset it to one page.
+        if (this.historyShown == null) this.historyShown = this.historyLimit;
+        const paginated = txs.slice(0, this.historyShown);
+
+        // Keep selection set free of ids no longer in the filtered view.
+        if (this.historySelected.size) {
+          const visibleIds = new Set(txs.map(t => t.id));
+          [...this.historySelected].forEach(id => { if (!visibleIds.has(id)) this.historySelected.delete(id); });
+          if (this.historySelected.size === 0) this.historySelectMode = false;
+        }
 
         if (paginated.length === 0) {
           list.innerHTML = '<div class="empty" style="padding:32px 16px;"><div class="empty-icon">📭</div><p>No transactions found</p></div>';
@@ -3653,37 +3727,206 @@
           list.innerHTML = paginated.map((t) => {
             const showDateHeader = t.date !== lastDate;
             lastDate = t.date;
-            const dateHeader = showDateHeader ? `<div class="tx-date-header"><div></div><span>${this.fmtDate(t.date)}</span><div></div></div>` : '';
+            const dateHeader = showDateHeader ? `<div class="tx-date-header"><span>${this.fmtDate(t.date)}</span></div>` : '';
             const splitBadge = t.isSplitParent ? '<span style="font-size:8px;background:var(--bg);color:var(--text-secondary);padding:1px 3px;border-radius:3px;margin-left:3px;font-weight:700;border:1px solid var(--glass-border-dark);">S</span>' : '';
             const mirrorBadge = t.mirrorOf ? '<span style="font-size:8px;background:var(--success-soft);color:var(--success);padding:1px 3px;border-radius:3px;margin-left:3px;font-weight:700;border:1px solid var(--glass-border-dark);" title="Synced from other profile">M</span>' : '';
             const earnBadge = (t.type === 'Earning' && t.mirrorOf) ? '<span style="font-size:8px;background:var(--success-soft);color:var(--success);padding:1px 3px;border-radius:3px;margin-left:3px;font-weight:700;border:1px solid var(--glass-border-dark);">Transfer In</span>' : '';
-            const editBtn = `<button class="del-btn" style="width:20px;height:20px;padding:0;" onclick="event.stopPropagation();app.editTransaction('${t.id}')" title="Edit" aria-label="Edit transaction">${this.icon('edit')}</button>`;
-            const dupBtn = `<button class="del-btn" style="width:20px;height:20px;padding:0;" onclick="event.stopPropagation();app.duplicateTransaction('${t.id}')" title="Duplicate" aria-label="Duplicate transaction">${this.icon('plus')}</button>`;
+            const selected = this.historySelected.has(t.id);
+            // In select mode, a leading checkbox replaces the type icon's tap target.
+            const selectBox = this.historySelectMode
+              ? `<div class="tx-select-box ${selected ? 'on' : ''}" aria-hidden="true">${selected ? '✓' : ''}</div>`
+              : '';
             return dateHeader + `
-            <div class="tx-item" style="padding:8px 0;${t.splitGroup ? 'padding-left:28px;opacity:0.85;border-left:2px solid var(--glass-border-dark);margin-left:4px;' : ''}">
-              ${t.splitGroup ? `<div class="tx-icon" style="width:22px;height:22px;font-size:9px;background:var(--bg);">${typeAbbrev(t.type||'O')}</div>` : this.typeIcon(t.type||'Other', 'width:28px;height:28px;font-size:10px;')}
+            <div class="tx-item tx-history-row${selected ? ' tx-selected' : ''}"
+                 data-id="${t.id}"
+                 style="padding:7px 0;${t.splitGroup ? 'padding-left:28px;opacity:0.85;border-left:2px solid var(--glass-border-dark);margin-left:4px;' : ''}">
+              ${selectBox || (t.splitGroup ? `<div class="tx-icon" style="width:22px;height:22px;font-size:9px;background:var(--bg);">${typeAbbrev(t.type||'O')}</div>` : this.typeIcon(t.type||'Other', 'width:28px;height:28px;font-size:10px;'))}
               <div class="tx-content" style="min-width:0;">
                 <div class="tx-title" style="font-size:13px;${t.splitGroup ? 'font-size:12px;' : ''}">${this.esc(t.item || 'Untitled')}${splitBadge}${mirrorBadge}${earnBadge}</div>
-                <div class="tx-meta" style="font-size:10px;">${this.esc(t.category || '')}${t.mode ? ' · ' + this.esc(t.mode) : ''} · ${t.date}${t.splitGroup ? ' · split' : ''}</div>
+                <div class="tx-meta" style="font-size:10px;">${this.esc(t.category || '')}${t.mode ? ' · ' + this.esc(t.mode) : ''} · ${t.date}${t.splitGroup ? ' · split' : ''}${this.historySelectMode ? '' : `<button class="tx-x-btn" data-id="${t.id}" title="Delete" aria-label="Delete transaction">&times;</button>`}</div>
               </div>
               <div class="tx-amount" style="font-size:13px;${t.splitGroup ? 'font-size:12px;' : ''}">${this.fmt(this.txDisplayAmount(t))}</div>
-              <div class="tx-actions">
-                ${editBtn}
-                ${dupBtn}
-                <button class="del-btn" style="width:20px;height:20px;padding:0;" onclick="event.stopPropagation();app.confirmDelete('${t.id}')" aria-label="Delete transaction">${this.icon('trash')}</button>
-              </div>
             </div>`;
           }).join('');
+          this.bindHistoryRowEvents();
         }
+
+        // Bulk-action bar visibility
+        this.renderHistorySelectionBar();
 
         const loadMore = document.getElementById('historyLoadMore');
         if (loadMore) {
-          loadMore.style.display = (this.historyOffset + this.historyLimit < totalCount) ? 'block' : 'none';
+          loadMore.style.display = (this.historyShown < totalCount) ? 'block' : 'none';
         }
       }
 
+      /** Wire up tap-to-edit, long-press / ctrl-click to select, and the × delete button. */
+      bindHistoryRowEvents() {
+        const list = document.getElementById('historyList');
+        if (!list) return;
+        const rows = list.querySelectorAll('.tx-history-row');
+        rows.forEach(row => {
+          const id = row.getAttribute('data-id');
+          let pressTimer = null;
+          let longPressed = false;
+
+          const startPress = (e) => {
+            longPressed = false;
+            // Ctrl/Cmd-click immediately toggles selection (desktop multi-select).
+            if (e.ctrlKey || e.metaKey) return;
+            pressTimer = setTimeout(() => {
+              longPressed = true;
+              this.toggleHistorySelect(id);
+              if (navigator.vibrate) { try { navigator.vibrate(15); } catch (_) {} }
+            }, 500);
+          };
+          const cancelPress = () => { if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; } };
+
+          row.addEventListener('touchstart', startPress, { passive: true });
+          row.addEventListener('touchend', cancelPress);
+          row.addEventListener('touchmove', cancelPress, { passive: true });
+          row.addEventListener('mousedown', startPress);
+          row.addEventListener('mouseup', cancelPress);
+          row.addEventListener('mouseleave', cancelPress);
+
+          row.addEventListener('click', (e) => {
+            if (e.target.closest('.tx-x-btn')) return; // handled separately
+            if (longPressed) { longPressed = false; return; } // long-press already toggled
+            if (e.ctrlKey || e.metaKey || this.historySelectMode) {
+              this.toggleHistorySelect(id);
+            } else {
+              this.editTransaction(id); // single tap = edit
+            }
+          });
+        });
+
+        list.querySelectorAll('.tx-x-btn').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.confirmDelete(btn.getAttribute('data-id'));
+          });
+        });
+      }
+
+      toggleHistorySelect(id) {
+        if (this.historySelected.has(id)) {
+          this.historySelected.delete(id);
+        } else {
+          this.historySelected.add(id);
+        }
+        this.historySelectMode = this.historySelected.size > 0;
+        this.renderHistory();
+      }
+
+      clearHistorySelection() {
+        this.historySelected.clear();
+        this.historySelectMode = false;
+        this.renderHistory();
+      }
+
+      /** Render or hide the floating bulk-action bar based on current selection. */
+      renderHistorySelectionBar() {
+        let bar = document.getElementById('historySelectionBar');
+        if (!this.historySelectMode || this.historySelected.size === 0) {
+          if (bar) bar.remove();
+          return;
+        }
+        const n = this.historySelected.size;
+        if (!bar) {
+          bar = document.createElement('div');
+          bar.id = 'historySelectionBar';
+          bar.className = 'history-selection-bar';
+          document.body.appendChild(bar);
+        }
+        bar.innerHTML = `
+          <span class="hsb-count">${n} selected</span>
+          <div class="hsb-actions">
+            <button class="hsb-btn" onclick="app.bulkDuplicate()">Duplicate</button>
+            <button class="hsb-btn" onclick="app.bulkExport()">Export</button>
+            <button class="hsb-btn hsb-danger" onclick="app.bulkDelete()">Delete</button>
+            <button class="hsb-btn hsb-close" onclick="app.clearHistorySelection()" aria-label="Cancel selection">&times;</button>
+          </div>`;
+      }
+
+      _selectedTxs() {
+        return this.data.transactions.filter(t => t && this.historySelected.has(t.id));
+      }
+
+      bulkDelete() {
+        const ids = [...this.historySelected];
+        if (ids.length === 0) return;
+        this.confirmCallback = () => {
+          this._nwCache = null;
+          this.pushUndo('Delete ' + ids.length + ' transactions');
+          const idSet = new Set(ids);
+          // Also remove split children and cross-profile mirrors of any selected parent.
+          ids.forEach(id => {
+            const t = this.data.transactions.find(x => x && x.id === id);
+            if (t && !t.mirrorOf && t.type === 'Transfer' && ['Personal to Joint','Joint to Personal'].includes(t.category)) {
+              const other = this.allData.activeProfile === 'self' ? 'wife' : 'self';
+              const od = this.allData.profiles[other];
+              if (od) od.transactions = od.transactions.filter(x => x.mirrorOf !== id);
+            }
+          });
+          this.data.transactions = this.data.transactions.filter(x =>
+            !idSet.has(x.id) && !(x.splitGroup && idSet.has(x.splitGroup)));
+          this.clearHistorySelectionSilent();
+          this.save();
+          this.renderHistory();
+          if (this.data.currentTab === 'home') this.renderDashboard();
+          this.closeModal('confirmModal');
+          this.toast(`Deleted ${ids.length} transactions`, 'ok');
+        };
+        const confirmTitle = document.getElementById('confirmTitle');
+        const confirmBody = document.getElementById('confirmBody');
+        const confirmBtn = document.getElementById('confirmBtn');
+        if (confirmTitle) confirmTitle.textContent = `Delete ${ids.length} transactions?`;
+        if (confirmBody) confirmBody.textContent = 'The selected transactions will be removed. This can be undone once via Undo.';
+        if (confirmBtn) {
+          confirmBtn.textContent = 'Delete';
+          confirmBtn.className = 'btn btn-danger';
+          confirmBtn.onclick = this.confirmCallback;
+        }
+        this.openModal('confirmModal');
+      }
+
+      bulkDuplicate() {
+        const ids = [...this.historySelected];
+        if (ids.length === 0) return;
+        this.pushUndo('Duplicate ' + ids.length + ' transactions');
+        ids.forEach(id => this._doDuplicateTransaction(id));
+        this.clearHistorySelectionSilent();
+        this.renderHistory();
+        this.toast(`Duplicated ${ids.length} transactions`, 'ok');
+      }
+
+      bulkExport() {
+        const txs = this._selectedTxs();
+        if (txs.length === 0) { this.toast('Nothing selected', 'err'); return; }
+        const headers = ['Date','Item','Type','Category','Amount','Mode','SubMode','Vendor','Brand','Source','Event'];
+        const rows = txs.map(t => {
+          const evt = t.eventId ? (this.data.events.find(e => e.id === t.eventId)||{}).name : '';
+          return [
+            t.date, this.csvEsc(t.item), t.type, this.csvEsc(t.category||''), t.amount,
+            t.mode||'', t.subMode||'', this.csvEsc(t.vendor||''), this.csvEsc(t.brand||''),
+            t.source||'Personal', this.csvEsc(evt)
+          ].join(',');
+        });
+        const csv = [headers.join(','), ...rows].join('\n');
+        this.downloadFile(csv, `transactions_${getLocalDateStr()}.csv`, 'text/csv');
+        this.toast(`Exported ${txs.length} transactions`, 'ok');
+      }
+
+      /** Clear selection without an extra re-render (caller re-renders). */
+      clearHistorySelectionSilent() {
+        this.historySelected.clear();
+        this.historySelectMode = false;
+        const bar = document.getElementById('historySelectionBar');
+        if (bar) bar.remove();
+      }
+
       loadMoreHistory() {
-        this.historyOffset += this.historyLimit;
+        this.historyShown += this.historyLimit;
         this.renderHistory();
       }
 
@@ -3974,6 +4217,8 @@
         }
         this.closePicker();
         this.historyOffset = 0;
+        this.historyShown = this.historyLimit;
+        this.clearHistorySelectionSilent && this.clearHistorySelectionSilent();
         this.renderHistory();
       }
 
@@ -3994,6 +4239,8 @@
         if (historyCategoryFilters) historyCategoryFilters.style.display = 'none';
         if (historyCategoryPills) historyCategoryPills.innerHTML = '';
         this.historyOffset = 0;
+        this.historyShown = this.historyLimit;
+        this.clearHistorySelectionSilent && this.clearHistorySelectionSilent();
         this.renderHistory();
       }
 
@@ -4377,21 +4624,6 @@
               </div>
             `).join('')}
           </div>
-          <div class="card" style="margin-bottom:10px;">
-            <div class="cat-header"><div class="cat-title">Recent Transactions</div></div>
-            <div style="max-height:300px;overflow-y:auto;">
-              ${visibleTxs.slice().reverse().slice(0,20).map(t => `
-                <div class="tx-item" style="padding:6px 0;">
-                  ${this.typeIcon(t.type||'Other', 'width:26px;height:26px;font-size:10px;')}
-                  <div class="tx-content">
-                    <div class="tx-title">${this.esc(t.item||'Untitled')}</div>
-                    <div class="tx-meta">${this.esc(t.type)} · ${this.esc(t.category||'')} · ${t.date}</div>
-                  </div>
-                  <div class="tx-amount">${this.fmt(this.txDisplayAmount(t))}</div>
-                </div>
-              `).join('')}
-            </div>
-          </div>
         `;
       }
 
@@ -4713,6 +4945,172 @@
           `);
         printWindow.document.close();
         this.toast('Print preview opened', 'ok');
+      }
+
+      /** Build inline SVG pie chart from [{label, value, color}] slices. */
+      _svgPie(slices, size = 160) {
+        const total = slices.reduce((s, x) => s + x.value, 0);
+        if (total <= 0) return '<div class="pie-empty">No data</div>';
+        const r = size / 2, cx = r, cy = r;
+        let angle = -Math.PI / 2;
+        const paths = slices.filter(s => s.value > 0).map(s => {
+          const frac = s.value / total;
+          const a2 = angle + frac * 2 * Math.PI;
+          const x1 = cx + r * Math.cos(angle), y1 = cy + r * Math.sin(angle);
+          const x2 = cx + r * Math.cos(a2), y2 = cy + r * Math.sin(a2);
+          const large = frac > 0.5 ? 1 : 0;
+          // Full-circle guard: a single 100% slice needs a circle, not an arc.
+          const d = frac >= 0.999
+            ? `M ${cx} ${cy} m ${-r} 0 a ${r} ${r} 0 1 0 ${r * 2} 0 a ${r} ${r} 0 1 0 ${-r * 2} 0`
+            : `M ${cx} ${cy} L ${x1.toFixed(2)} ${y1.toFixed(2)} A ${r} ${r} 0 ${large} 1 ${x2.toFixed(2)} ${y2.toFixed(2)} Z`;
+          angle = a2;
+          return `<path d="${d}" fill="${s.color}" stroke="#fff" stroke-width="1"/>`;
+        }).join('');
+        return `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" role="img">${paths}</svg>`;
+      }
+
+      /** Stable per-category color derived from the type's accent + index shading. */
+      _catColor(baseHex, idx, count) {
+        // Lighten/darken the base accent across the category set for distinguishable slices.
+        const f = count > 1 ? (idx / (count - 1)) : 0; // 0..1
+        const amt = -0.35 + f * 0.7; // shift from darker to lighter
+        const hex = baseHex.replace('#', '');
+        const r = parseInt(hex.slice(0, 2), 16), g = parseInt(hex.slice(2, 4), 16), b = parseInt(hex.slice(4, 6), 16);
+        const adj = (c) => {
+          const v = amt < 0 ? c * (1 + amt) : c + (255 - c) * amt;
+          return Math.max(0, Math.min(255, Math.round(v)));
+        };
+        return `#${[adj(r), adj(g), adj(b)].map(c => c.toString(16).padStart(2, '0')).join('')}`;
+      }
+
+      exportReportHTML() {
+        const txs = this.getReportTransactions();
+        if (txs.length === 0) { this.toast('No data to export', 'err'); return; }
+        const from = document.getElementById('reportDateFrom').value || 'All time';
+        const to = document.getElementById('reportDateTo').value || 'All time';
+        const visibleTxs = txs.filter(t => !t.isSplitParent && !t.mirrorOf);
+
+        const EXPENSE = ['Essential', 'Non-essential', 'Vacation'];
+        const income = this.txSum(visibleTxs.filter(t => ['Earning', 'Saving', 'Investment'].includes(t.type)));
+        const expense = this.txSum(visibleTxs.filter(t => EXPENSE.includes(t.type)));
+        const net = income - expense;
+
+        // Budget vs actual per expense type, summed across the months in range.
+        const monthsInRange = [...new Set(visibleTxs.map(t => t.date.slice(0, 7)))];
+        const budgetForType = (type) => {
+          const tb = this.data.budgets[type] || {};
+          if (monthsInRange.length === 0) return 0;
+          return monthsInRange.reduce((s, mk) => s + ((tb[mk] && tb[mk].amount) || 0), 0);
+        };
+
+        // Spend grouped by type → category.
+        const byType = {};
+        visibleTxs.forEach(t => {
+          const ty = t.type || 'Other';
+          if (!byType[ty]) byType[ty] = { total: 0, cats: {} };
+          byType[ty].total += t.amount || 0;
+          const c = t.category || 'Uncategorized';
+          byType[ty].cats[c] = (byType[ty].cats[c] || 0) + (t.amount || 0);
+        });
+
+        // Overall spend-by-type pie (expense types only).
+        const expenseTypes = Object.keys(byType).filter(ty => EXPENSE.includes(ty));
+        const overallSlices = expenseTypes.map(ty => ({
+          label: ty, value: byType[ty].total, color: typeStyle(ty).accent
+        }));
+        const overallPie = this._svgPie(overallSlices, 200);
+        const overallLegend = overallSlices.filter(s => s.value > 0)
+          .sort((a, b) => b.value - a.value)
+          .map(s => `<li><span class="dot" style="background:${s.color}"></span>${this.esc(s.label)} <b>${this.fmt(s.value)}</b> <i>${expense > 0 ? Math.round(s.value / expense * 100) : 0}%</i></li>`)
+          .join('');
+
+        // Budget-vs-actual grid rows (all types that have spend or budget).
+        const gridTypes = [...new Set([...Object.keys(byType), ...Object.keys(this.data.budgets)])]
+          .filter(ty => byType[ty]?.total > 0 || budgetForType(ty) > 0);
+        const gridRows = gridTypes.map(ty => {
+          const spent = byType[ty]?.total || 0;
+          const bud = budgetForType(ty);
+          const pct = bud > 0 ? Math.round(spent / bud * 100) : 0;
+          const over = bud > 0 && spent > bud;
+          const isExp = EXPENSE.includes(ty);
+          const barColor = (isExp && pct > 100) ? '#C45B5B' : (isExp && pct > 90) ? '#E0A340' : typeStyle(ty).accent;
+          const diff = bud - spent;
+          return `<tr>
+            <td><span class="chip" style="background:${typeStyle(ty).bg};color:${typeStyle(ty).fg}">${this.esc(ty)}</span></td>
+            <td class="num">${this.fmt(spent)}</td>
+            <td class="num">${bud > 0 ? this.fmt(bud) : '—'}</td>
+            <td class="num ${diff < 0 ? 'red' : 'green'}">${bud > 0 ? (diff >= 0 ? this.fmt(diff) + ' left' : this.fmt(-diff) + ' over') : '—'}</td>
+            <td style="width:140px"><div class="bar"><div class="bar-fill" style="width:${Math.min(pct, 100)}%;background:${barColor}"></div></div><div class="bar-label">${bud > 0 ? pct + '%' : 'no budget'}</div></td>
+          </tr>`;
+        }).join('');
+
+        // Per-expense-type category pie cards.
+        const typePieCards = expenseTypes.filter(ty => byType[ty].total > 0).map(ty => {
+          const entries = Object.entries(byType[ty].cats).sort((a, b) => b[1] - a[1]);
+          const base = typeStyle(ty).accent;
+          const slices = entries.map(([cat, val], i) => ({ label: cat, value: val, color: this._catColor(base, i, entries.length) }));
+          const pie = this._svgPie(slices, 160);
+          const legend = slices.map(s => `<li><span class="dot" style="background:${s.color}"></span>${this.esc(s.label)} <b>${this.fmt(s.value)}</b> <i>${Math.round(s.value / byType[ty].total * 100)}%</i></li>`).join('');
+          const bud = budgetForType(ty);
+          return `<div class="pie-card">
+            <h3><span class="chip" style="background:${typeStyle(ty).bg};color:${typeStyle(ty).fg}">${this.esc(ty)}</span> ${this.fmt(byType[ty].total)}${bud > 0 ? ` <span class="muted">/ ${this.fmt(bud)} budget</span>` : ''}</h3>
+            <div class="pie-row"><div class="pie">${pie}</div><ul class="legend">${legend}</ul></div>
+          </div>`;
+        }).join('');
+
+        const html = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Expense Report ${from} — ${to}</title>
+<style>
+  *{box-sizing:border-box} body{font-family:Inter,-apple-system,Segoe UI,Roboto,sans-serif;margin:0;background:#f5f5f5;color:#1a1a1a;padding:28px}
+  .wrap{max-width:920px;margin:0 auto}
+  h1{font-size:24px;margin:0 0 4px} .meta{color:#6b6b6b;font-size:12px;margin-bottom:24px}
+  h2{font-size:15px;margin:28px 0 12px;text-transform:uppercase;letter-spacing:.06em;color:#444}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:8px}
+  .card{background:#fff;border:1px solid #e3e3e3;border-radius:14px;padding:16px}
+  .label{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:#6b6b6b;font-weight:700;margin-bottom:6px}
+  .value{font-size:22px;font-weight:700} .green{color:#2C6B12}.red{color:#C45B5B}.muted{color:#6b6b6b;font-weight:500;font-size:12px}
+  table{width:100%;border-collapse:collapse;font-size:13px;background:#fff;border:1px solid #e3e3e3;border-radius:14px;overflow:hidden}
+  th{text-align:left;padding:10px 12px;background:#fafafa;border-bottom:2px solid #e3e3e3;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:#666}
+  td{padding:10px 12px;border-bottom:1px solid #f0f0f0;vertical-align:middle} tr:last-child td{border-bottom:none}
+  .num{text-align:right;font-variant-numeric:tabular-nums}
+  .chip{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700}
+  .bar{height:8px;background:#eee;border-radius:999px;overflow:hidden} .bar-fill{height:100%;border-radius:999px} .bar-label{font-size:10px;color:#888;margin-top:3px}
+  .pies{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
+  .pie-card{background:#fff;border:1px solid #e3e3e3;border-radius:14px;padding:16px} .pie-card h3{font-size:14px;margin:0 0 12px;font-weight:600}
+  .pie-row{display:flex;gap:16px;align-items:center;flex-wrap:wrap} .pie{flex-shrink:0}
+  .legend{list-style:none;margin:0;padding:0;font-size:12px;flex:1;min-width:140px}
+  .legend li{display:flex;align-items:center;gap:6px;padding:3px 0} .legend b{margin-left:auto} .legend i{color:#888;font-style:normal;width:34px;text-align:right}
+  .dot{width:10px;height:10px;border-radius:3px;flex-shrink:0}
+  .overall{display:flex;gap:24px;align-items:center;flex-wrap:wrap;background:#fff;border:1px solid #e3e3e3;border-radius:14px;padding:20px}
+  .pie-empty{color:#999;font-size:12px;padding:20px}
+  footer{margin-top:32px;color:#aaa;font-size:11px;text-align:center}
+  @media print{body{background:#fff;padding:0}.card,table,.pie-card,.overall{break-inside:avoid}}
+</style></head><body><div class="wrap">
+  <h1>Expense Report</h1>
+  <div class="meta">Period: ${from} — ${to} · Profile: ${this.allData.activeProfile === 'self' ? 'Self' : 'Joint'} · Generated ${new Date().toLocaleString()}</div>
+
+  <div class="grid">
+    <div class="card"><div class="label">Income</div><div class="value green">${this.fmt(income)}</div></div>
+    <div class="card"><div class="label">Expense</div><div class="value red">${this.fmt(expense)}</div></div>
+    <div class="card"><div class="label">Net</div><div class="value ${net >= 0 ? 'green' : 'red'}">${this.fmt(net)}</div></div>
+    <div class="card"><div class="label">Transactions</div><div class="value">${visibleTxs.length}</div></div>
+  </div>
+
+  <h2>Spending by Type</h2>
+  <div class="overall"><div class="pie">${overallPie}</div><ul class="legend">${overallLegend || '<li class="muted">No expense transactions</li>'}</ul></div>
+
+  <h2>Budgeted vs Actual</h2>
+  <table><thead><tr><th>Expense Type</th><th class="num">Actual</th><th class="num">Budget</th><th class="num">Variance</th><th>Usage</th></tr></thead>
+  <tbody>${gridRows || '<tr><td colspan="5" class="muted">No data</td></tr>'}</tbody></table>
+
+  <h2>Category Breakdown by Type</h2>
+  <div class="pies">${typePieCards || '<div class="pie-empty">No expense categories to chart.</div>'}</div>
+
+  <footer>Generated by Expense Tracker</footer>
+</div></body></html>`;
+
+        this.downloadFile(html, `expense_report_${getLocalDateStr()}.html`, 'text/html');
+        this.toast('HTML report exported', 'ok');
       }
 
       csvEsc(str) {
