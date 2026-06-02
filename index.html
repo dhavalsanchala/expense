@@ -840,6 +840,14 @@
             <input type="hidden" id="autoResetMonth" value="true">
             <p style="font-size:10px;color:var(--text-tertiary);margin-top:8px;font-weight:500;">Automatically switches the dashboard to the current calendar month when detected. Recurring transactions and budgets are generated for the new month.</p>
           </div>
+          <div class="card" style="padding:14px;margin-bottom:12px;">
+            <div class="recurring-row" onclick="app.toggleAutoBackup()" style="border-top:none;margin-top:0;padding-top:0;cursor:pointer;" role="button" tabindex="0" aria-label="Toggle daily auto-backup">
+              <span class="recurring-label">Daily auto-backup</span>
+              <div class="toggle" id="autoBackupToggle" aria-hidden="true"><div class="toggle-knob"></div></div>
+            </div>
+            <input type="hidden" id="autoBackup" value="true">
+            <p style="font-size:10px;color:var(--text-tertiary);margin-top:8px;font-weight:500;">Once a day, automatically downloads a JSON backup of the active profile to your Downloads folder &mdash; at midnight if the app is open, otherwise on the first open of a new day. Note: your browser may prompt for a save location unless &ldquo;ask where to save each file&rdquo; is turned off.</p>
+          </div>
         </div>
 
         <div id="backupClearTab" style="display:none;">

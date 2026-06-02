@@ -78,6 +78,7 @@
       planYear: 2026,
       undoStack: [],
       autoResetMonth: true,
+      autoBackup: true,
       expenseTypes: ['Earning', 'Saving', 'Investment', 'Transfer', 'Essential', 'Non-essential', 'Vacation'],
       typeCategories: {
         'Earning': ['Salary', 'Refund', 'Equity Sale', 'Dividend', 'Transfer In'],
@@ -213,6 +214,7 @@
         if (!d.version) d.version = 2;
         if (!d.undoStack) d.undoStack = [];
         if (d.autoResetMonth === undefined) d.autoResetMonth = true;
+        if (d.autoBackup === undefined) d.autoBackup = true;
         if (!d.expenseTypes) d.expenseTypes = JSON.parse(JSON.stringify(DEFAULT_DATA.expenseTypes));
         if (!d.typeCategories) d.typeCategories = JSON.parse(JSON.stringify(DEFAULT_DATA.typeCategories));
         // Ensure recurring items have lastGenerated so we don't loop from 2020 forever
@@ -255,6 +257,7 @@
         if (!d.expenseTypes || !Array.isArray(d.expenseTypes)) d.expenseTypes = JSON.parse(JSON.stringify(DEFAULT_DATA.expenseTypes));
         if (!d.typeCategories || typeof d.typeCategories !== 'object') d.typeCategories = JSON.parse(JSON.stringify(DEFAULT_DATA.typeCategories));
         if (d.autoResetMonth === undefined) d.autoResetMonth = true;
+        if (d.autoBackup === undefined) d.autoBackup = true;
         d.transactions = d.transactions.filter(t => t && t.id && t.date);
         // Seed each recurring item's generatedMonths ledger so the generator never
         // recreates a month that was already produced — even if the user later moved
@@ -365,6 +368,7 @@
             this._listenersAttached = true;
           }
           this.updateUndoButton();
+          this.runAutoBackupCheck();
           // M7: C1+C2+H3: Auto-refresh lifecycle status every 60s only when Track tab is active
           // Only start interval if currently on track tab; setTab manages start/stop on tab switches
           if (this.data.currentTab === 'track' && !this._lifecycleInterval) {
@@ -6525,6 +6529,10 @@
         const autoResetMonth = document.getElementById('autoResetMonth');
         if (autoResetMonthToggle) autoResetMonthToggle.classList.toggle('on', this.data.autoResetMonth !== false);
         if (autoResetMonth) autoResetMonth.value = this.data.autoResetMonth !== false ? 'true' : 'false';
+        const autoBackupToggle = document.getElementById('autoBackupToggle');
+        const autoBackup = document.getElementById('autoBackup');
+        if (autoBackupToggle) autoBackupToggle.classList.toggle('on', this.data.autoBackup !== false);
+        if (autoBackup) autoBackup.value = this.data.autoBackup !== false ? 'true' : 'false';
         this.openModal('backupModal');
       }
 
@@ -6572,6 +6580,62 @@
         URL.revokeObjectURL(url);
         this.toast('Download started', 'ok');
       }
+
+      // ---- Daily auto-backup ----
+      // Silently downloads a JSON of the active profile, at most once per
+      // calendar day. Fires at midnight if the app is open across 00:00, or
+      // else on the first open of a new day. Default ON.
+      autoBackupDownload() {
+        try {
+          const profile = this.allData && this.allData.activeProfile ? this.allData.activeProfile : 'profile';
+          const blob = new Blob([JSON.stringify(this.data, null, 2)], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `expense_backup_${profile}_auto_${getLocalDateStr()}.json`;
+          a.style.display = 'none';
+          document.body.appendChild(a);
+          a.click();
+          setTimeout(() => { try { document.body.removeChild(a); } catch(e){} try { URL.revokeObjectURL(url); } catch(e){} }, 100);
+          try { localStorage.setItem('expenseTracker_lastAutoBackup', getLocalDateStr()); } catch(e){}
+          this.toast('Daily backup saved to Downloads', 'ok');
+        } catch(e) { /* silent */ }
+      }
+
+      autoBackupEnabled() {
+        return this.data.autoBackup !== false;
+      }
+
+      runAutoBackupCheck() {
+        if (this._autoBackupTimer) { clearTimeout(this._autoBackupTimer); this._autoBackupTimer = null; }
+        if (!this.autoBackupEnabled()) return;
+        let last = null;
+        try { last = localStorage.getItem('expenseTracker_lastAutoBackup'); } catch(e){}
+        if (last !== getLocalDateStr()) this.autoBackupDownload();
+        // schedule next fire just after the next midnight (if app stays open)
+        const now = new Date();
+        const nextMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 5, 0);
+        const ms = nextMidnight.getTime() - now.getTime();
+        if (ms > 0 && ms <= 86400000) {
+          this._autoBackupTimer = setTimeout(() => {
+            if (this.autoBackupEnabled()) this.autoBackupDownload();
+            this.runAutoBackupCheck();
+          }, ms);
+        }
+      }
+
+      toggleAutoBackup() {
+        const el = document.getElementById('autoBackupToggle');
+        const inp = document.getElementById('autoBackup');
+        const isOn = this.data.autoBackup !== false;
+        this.data.autoBackup = !isOn;
+        if (el) el.classList.toggle('on', !isOn);
+        if (inp) inp.value = !isOn ? 'true' : 'false';
+        this.save();
+        this.toast(isOn ? 'Daily auto-backup disabled' : 'Daily auto-backup enabled', 'ok');
+        this.runAutoBackupCheck();
+      }
+
 
       getBackups() {
         try {
